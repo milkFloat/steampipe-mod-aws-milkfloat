@@ -233,27 +233,50 @@ dashboard "milkFloat_FinOps_Dashboard" {
         1,2,3,4,5,unit,region
     )
     SELECT 
-        costs_this_month.service, ROUND(CAST(costs_this_month.cost_this_month as numeric), 2) as cost_this_month, 
-        ROUND(CAST(costs_one_month_prior.cost_1_month_ago as numeric), 2) as cost_1_month_ago,
-        ROUND(CAST(costs_two_months_prior.cost_2_months_ago as numeric), 2) as cost_2_months_ago,
-        ROUND(CAST(costs_three_months_prior.cost_3_months_ago as numeric), 2) as cost_3_months_ago,
-        ROUND(CAST(costs_four_months_prior.cost_4_months_ago as numeric), 2) as cost_4_months_ago,
-        ROUND(CAST(costs_five_months_prior.cost_5_months_ago as numeric), 2) as cost_5_months_ago,
-        ROUND(CAST(costs_six_months_prior.cost_6_months_ago as numeric), 2) as cost_6_months_ago
+      distinct coalesce(costs_this_month.service,costs_one_month_prior.service,costs_two_months_prior.service,costs_three_months_prior.service,costs_four_months_prior.service, costs_five_months_prior.service, costs_six_months_prior.service) as service,
+    CASE
+      WHEN ROUND(CAST(costs_this_month.cost_this_month as numeric), 2) IS NULL THEN '0'
+      ELSE ROUND(CAST(costs_this_month.cost_this_month as numeric), 2)
+    END AS cost_this_month,
+    CASE
+      WHEN ROUND(CAST(costs_one_month_prior.cost_1_month_ago as numeric), 2) IS NULL THEN '0'
+      ELSE ROUND(CAST(costs_one_month_prior.cost_1_month_ago as numeric), 2)
+    END AS cost_1_month_ago,
+    CASE 
+      WHEN ROUND(CAST(costs_two_months_prior.cost_2_months_ago as numeric), 2) IS NULL THEN '0'
+      ELSE ROUND(CAST(costs_two_months_prior.cost_2_months_ago as numeric), 2)
+    END AS cost_2_months_ago,
+    CASE
+      WHEN ROUND(CAST(costs_three_months_prior.cost_3_months_ago as numeric), 2) IS NULL THEN '0'
+      ELSE ROUND(CAST(costs_three_months_prior.cost_3_months_ago as numeric), 2)
+    END AS cost_3_months_ago,
+    CASE
+      WHEN ROUND(CAST(costs_four_months_prior.cost_4_months_ago as numeric), 2) IS NULL THEN '0'
+      ELSE ROUND(CAST(costs_four_months_prior.cost_4_months_ago as numeric), 2)
+    END AS cost_4_months_ago,
+    CASE
+      WHEN ROUND(CAST(costs_five_months_prior.cost_5_months_ago as numeric), 2) IS NULL THEN '0'
+      ELSE ROUND(CAST(costs_five_months_prior.cost_5_months_ago as numeric), 2)
+    END AS cost_5_months_ago,
+    CASE
+      WHEN ROUND(CAST(costs_six_months_prior.cost_6_months_ago as numeric), 2) IS NULL THEN '0'
+      ELSE ROUND(CAST(costs_six_months_prior.cost_6_months_ago as numeric), 2)
+    END AS cost_6_months_ago
     FROM costs_this_month
-    FULL JOIN costs_one_month_prior
-        ON costs_this_month.service = costs_one_month_prior.service
-    FULL JOIN costs_two_months_prior
-        ON costs_this_month.service = costs_two_months_prior.service
-    FULL JOIN costs_three_months_prior
-        ON costs_this_month.service = costs_three_months_prior.service
-    FULL JOIN costs_four_months_prior
-        ON costs_this_month.service = costs_four_months_prior.service
-    FULL JOIN costs_five_months_prior
-        ON costs_this_month.service = costs_five_months_prior.service
-    FULL JOIN costs_six_months_prior
-        ON costs_this_month.service = costs_six_months_prior.service
-    ORDER BY costs_this_month.service;
+    FULL OUTER JOIN costs_one_month_prior ON
+      costs_this_month.service = costs_one_month_prior.service
+    FULL OUTER JOIN costs_two_months_prior ON
+      costs_this_month.service = costs_two_months_prior.service
+    FULL OUTER JOIN costs_three_months_prior ON
+      costs_this_month.service = costs_three_months_prior.service
+    FULL OUTER JOIN costs_four_months_prior ON 
+      costs_this_month.service = costs_four_months_prior.service
+    FULL OUTER JOIN costs_five_months_prior ON
+      costs_this_month.service = costs_five_months_prior.service
+    FULL OUTER JOIN costs_six_months_prior ON
+      costs_this_month.service = costs_six_months_prior.service
+    group by costs_this_month.cost_this_month, costs_one_month_prior.cost_1_month_ago, costs_two_months_prior.cost_2_months_ago, costs_three_months_prior.cost_3_months_ago, costs_four_months_prior.cost_4_months_ago, costs_five_months_prior.cost_5_months_ago, costs_six_months_prior.cost_6_months_ago, costs_this_month.service, costs_one_month_prior.service,
+    costs_two_months_prior.service, costs_three_months_prior.service, costs_four_months_prior.service, costs_five_months_prior.service, costs_six_months_prior.service
     EOQ
     }
     }
