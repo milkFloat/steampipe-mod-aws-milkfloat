@@ -327,17 +327,21 @@ dashboard "milkfloat_security_dashboard" {
       title = "Datasets and Access (Non-AWS)"
       width = 15
       sql = <<-EOQ
-        SELECT
-          table_schema,
-          table_name,
-          grantee,
-          privilege_type
-        FROM
-          information_schema.table_privileges
-        WHERE
-          table_schema NOT IN ('information_schema', 'pg_catalog', 'aws')
-          AND table_name <> 'table_name'
-        LIMIT 10
+       SELECT
+        table_schema,
+        table_name,
+        grantee,
+        STRING_AGG(privilege_type, ', ') AS privilege_types
+      FROM
+        information_schema.table_privileges
+      WHERE
+        table_schema NOT IN ('information_schema', 'pg_catalog', 'aws')
+        AND table_name <> 'table_name'
+      GROUP BY
+        table_schema,
+        table_name,
+        grantee
+      LIMIT 10
       EOQ
     }
   }
