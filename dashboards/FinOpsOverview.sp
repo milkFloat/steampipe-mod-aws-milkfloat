@@ -183,13 +183,13 @@ dashboard "milkFloat_FinOps_Dashboard" {
 
     container {
         chart {
-            type  = "line"
-            title = "Next 30 Days Predicted Total Account Cost [$]"
-            query = query.forcasted_30_days
-            width = 6
-            args = {
-                "account_id" = self.input.account_id.value
-            }
+          type  = "line"
+          title = "Next 30 Days Predicted Total Account Cost [$]"
+          query = query.forcasted_30_days
+          width = 6
+          args = {
+              "account_id" = self.input.account_id.value
+          }
       }
     }
   }
