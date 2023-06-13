@@ -1,0 +1,93 @@
+SELECT
+  project_count."Region",
+  trail_count."Regional Trails",
+  project_count."Codebuild Projects",
+  codecommit_count."CodeCommit Repos",
+  volume_count."EBS Volumes",
+  volume_size."Total EBS Volume Size (GB)",
+  instance_count."EC2 Instances",
+  ecr_count."ECR Repositories",
+  cluster_count."Clusters"
+FROM
+  (SELECT
+    region AS "Region",
+    COUNT(*) AS "Codebuild Projects"
+  FROM
+    aws_codebuild_project
+  GROUP BY
+    region
+  ORDER BY
+    region) AS project_count
+JOIN
+  (SELECT
+    COUNT(*) AS "Regional Trails"
+  FROM
+    aws_cloudtrail_trail
+  WHERE
+    region = home_region
+    AND NOT is_multi_region_trail) AS trail_count
+ON true
+JOIN
+  (SELECT
+    region AS "Region",
+    COUNT(*) AS "CodeCommit Repos"
+  FROM
+    aws_codecommit_repository
+  GROUP BY
+    region
+  ORDER BY
+    region) AS codecommit_count
+ON project_count."Region" = codecommit_count."Region"
+JOIN
+  (SELECT
+    region AS "Region",
+    COUNT(*) AS "EBS Volumes"
+  FROM
+    aws_ebs_volume
+  GROUP BY
+    region
+  ORDER BY
+    region) AS volume_count
+ON project_count."Region" = volume_count."Region"
+JOIN
+  (SELECT
+    region AS "Region",
+    SUM(size) AS "Total EBS Volume Size (GB)"
+  FROM
+    aws_ebs_volume
+  GROUP BY
+    region
+  ORDER BY
+    region) AS volume_size
+ON project_count."Region" = volume_size."Region"
+JOIN
+  (SELECT
+    region AS "Region",
+    COUNT(*) AS "EC2 Instances"
+  FROM
+    aws_ec2_instance
+  GROUP BY
+    region) AS instance_count
+ON project_count."Region" = instance_count."Region"
+JOIN
+  (SELECT
+    region AS "Region",
+    COUNT(*) AS "ECR Repositories"
+  FROM
+    aws_ecr_repository
+  GROUP BY
+    region
+  ORDER BY
+    region) AS ecr_count
+ON project_count."Region" = ecr_count."Region"
+JOIN
+  (SELECT
+    region AS "Region",
+    COUNT(*) AS "Clusters"
+  FROM
+    aws_ecs_cluster
+  GROUP BY
+    region
+  ORDER BY
+    region) AS cluster_count
+ON project_count."Region" = cluster_count."Region";

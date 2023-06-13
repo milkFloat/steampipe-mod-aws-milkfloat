@@ -23,18 +23,19 @@ dashboard "milkfloat_security_dashboard" {
     card {
       width = 4
       sql = <<-EOQ
-        SELECT
-          CONCAT('Excessive Permissions - [', name, ']') AS label,
-          CASE
-            WHEN jsonb_array_length(inline_policies) > 10 THEN 'Excessive'
-            ELSE 'Non Excessive'
-          END AS value,
-          CASE
-            WHEN jsonb_array_length(inline_policies) > 10 THEN 'alert'
-            ELSE 'ok'
-          END AS type
-        FROM
-          aws_iam_user
+      select
+      count(*) as value,
+      'Excessive Permissions' as label,
+      case
+        when count(*) = 0 then 'ok'
+        else 'alert'
+      end as type
+    from
+      aws_iam_access_advisor,
+      aws_iam_user
+    where
+      principal_arn = arn
+      and coalesce(last_authenticated, now() - '400 days' :: interval) < now() - (10 || ' days') :: interval;
       EOQ
     }
 
@@ -59,6 +60,177 @@ dashboard "milkfloat_security_dashboard" {
   EOQ
   width = 4
 }
+
+table {
+      title = "Regional Activity Summary"
+      width = 15
+      sql = <<-EOQ
+        SELECT
+  t1."Region",
+  t1."TableCount",
+  t2."CertificateCount",
+  t3."DynamoDBItemCount",
+  t4."Snapshots",
+  t5."EBSSnapshotVolumeSize (GB)",
+  t6."ApiGatewayV2 API's",
+  project_count."Codebuild Projects",
+  trail_count."Regional Trails",
+  codecommit_count."CodeCommit Repos",
+  volume_count."EBS Volumes",
+  volume_size."Total EBS Volume Size (GB)",
+  instance_count."EC2 Instances",
+  ecr_count."ECR Repositories",
+  cluster_count."Clusters"
+FROM
+  (SELECT
+    region as "Region",
+    count(*) as "TableCount"
+  FROM
+    aws_dynamodb_table
+  GROUP BY
+    region) t1
+JOIN
+  (SELECT
+    region as "Region",
+    count(*) as "CertificateCount"
+  FROM
+    aws_acm_certificate
+  GROUP BY
+    region) t2
+ON
+  t1."Region" = t2."Region"
+JOIN
+  (SELECT
+    region as "Region",
+    sum(item_count) as "DynamoDBItemCount"
+  FROM
+    aws_dynamodb_table
+  GROUP BY
+    region) t3
+ON
+  t1."Region" = t3."Region"
+JOIN
+  (SELECT
+    region as "Region",
+    count(*) as "Snapshots"
+  FROM
+    aws_ebs_snapshot
+  GROUP BY
+    region) t4
+ON
+  t1."Region" = t4."Region"
+JOIN
+  (SELECT
+    region as "Region",
+    sum(volume_size) as "EBSSnapshotVolumeSize (GB)"
+  FROM
+    aws_ebs_snapshot
+  GROUP BY
+    region) t5
+ON
+  t1."Region" = t5."Region"
+JOIN
+  (SELECT
+    region as "Region",
+    count(*) as "ApiGatewayV2 API's"
+  FROM
+    aws_api_gatewayv2_api
+  GROUP BY
+    region) t6
+ON
+  t1."Region" = t6."Region"
+JOIN
+  (SELECT
+    region AS "Region",
+    COUNT(*) AS "Codebuild Projects"
+  FROM
+    aws_codebuild_project
+  GROUP BY
+    region
+  ORDER BY
+    region) AS project_count
+ON t1."Region" = project_count."Region"
+JOIN
+  (SELECT
+    COUNT(*) AS "Regional Trails"
+  FROM
+    aws_cloudtrail_trail
+  WHERE
+    region = home_region
+    AND NOT is_multi_region_trail) AS trail_count
+ON true
+JOIN
+  (SELECT
+    region AS "Region",
+    COUNT(*) AS "CodeCommit Repos"
+  FROM
+    aws_codecommit_repository
+  GROUP BY
+    region
+  ORDER BY
+    region) AS codecommit_count
+ON t1."Region" = codecommit_count."Region"
+JOIN
+  (SELECT
+    region AS "Region",
+    COUNT(*) AS "EBS Volumes"
+  FROM
+    aws_ebs_volume
+  GROUP BY
+    region
+  ORDER BY
+    region) AS volume_count
+ON t1."Region" = volume_count."Region"
+JOIN
+  (SELECT
+    region AS "Region",
+    SUM(size) AS "Total EBS Volume Size (GB)"
+  FROM
+    aws_ebs_volume
+  GROUP BY
+    region
+  ORDER BY
+    region) AS volume_size
+ON t1."Region" = volume_size."Region"
+JOIN
+  (SELECT
+    region AS "Region",
+    COUNT(*) AS "EC2 Instances"
+  FROM
+    aws_ec2_instance
+  GROUP BY
+    region) AS instance_count
+ON t1."Region" = instance_count."Region"
+JOIN
+  (SELECT
+    region AS "Region",
+    COUNT(*) AS "ECR Repositories"
+  FROM
+    aws_ecr_repository
+  GROUP BY
+    region
+  ORDER BY
+    region) AS ecr_count
+ON t1."Region" = ecr_count."Region"
+JOIN
+  (SELECT
+    region AS "Region",
+    COUNT(*) AS "Clusters"
+  FROM
+    aws_ecs_cluster
+  GROUP BY
+    region
+  ORDER BY
+    region) AS cluster_count
+ON t1."Region" = cluster_count."Region"
+ORDER BY
+  t1."Region";
+
+
+      EOQ
+    }
+
+
 
 
 
@@ -163,7 +335,6 @@ dashboard "milkfloat_security_dashboard" {
           log_group_name = 'Dev-BLEAGovBaseStandalone-LoggingCloudTrailLogGroupEFC12822-Osc3j5K0guqc'
           AND filter = '{($.eventName = "ConsoleLogin")}'
           AND timestamp >= now() - interval '1 month'
-        LIMIT 10
       EOQ
     }
 
@@ -235,7 +406,6 @@ dashboard "milkfloat_security_dashboard" {
         WHERE
           message_json->>'errorMessage' IS NOT NULL
           AND log_group_name = 'Dev-BLEAGovBaseStandalone-LoggingCloudTrailLogGroupEFC12822-Osc3j5K0guqc'
-        LIMIT 10
       EOQ
     }
 
@@ -341,7 +511,6 @@ dashboard "milkfloat_security_dashboard" {
         table_schema,
         table_name,
         grantee
-      LIMIT 10
       EOQ
     }
   }
