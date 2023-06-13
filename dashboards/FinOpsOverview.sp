@@ -49,6 +49,7 @@ query "aws_annual_forcasted_total_cost" {
       'Annual costs for all accounts (estimated)' as label
       from aws_cost_forecast_monthly
       WHERE account_id != '584676501372'
+      AND period_start >= current_date
     EOQ
 }
 
