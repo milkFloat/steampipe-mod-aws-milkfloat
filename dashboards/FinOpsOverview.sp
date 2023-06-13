@@ -30,7 +30,7 @@ query "total_monthly_cost_by_account" {
 
 query "forcasted_30_days" {
     sql = <<-EOQ
-        select to_char(period_end, 'DD-MM-YYYY') as date, 
+        select to_char(period_end, 'DD-MM') as date, 
         ROUND(CAST(mean_value as numeric), 2) as cost 
         from aws_cost_forecast_daily
         where account_id = $1
@@ -169,7 +169,7 @@ dashboard "milkFloat_FinOps_Dashboard" {
           }
           y {
             title {
-              value = "Cost"
+              value = "Cost ($)"
             }
           }
         }
@@ -186,7 +186,18 @@ dashboard "milkFloat_FinOps_Dashboard" {
           type  = "line"
           title = "Next 30 Days Predicted Total Account Cost [$]"
           query = query.forcasted_30_days
-          width = 6
+          axes {
+            x {
+              title {
+                value = "Day"
+              }
+            }
+            y {
+              title {
+                value = "Cost ($)"
+              }
+            }
+          }
           args = {
               "account_id" = self.input.account_id.value
           }
