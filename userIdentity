@@ -1,0 +1,8 @@
+   SELECT
+          *
+        FROM
+          aws_cloudwatch_log_event
+        WHERE
+          log_group_name = 'Dev-BLEAGovBaseStandalone-LoggingCloudTrailLogGroupEFC12822-Osc3j5K0guqc'
+          AND filter = '{($.eventName = "CreateStack")}'
+          AND timestamp >= now() - interval '1 month'
