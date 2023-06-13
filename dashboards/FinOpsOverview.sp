@@ -23,10 +23,16 @@ query "total_monthly_cost_by_account" {
                 and period_start >= date_trunc('month', current_date - interval '1' month)
                 and period_start < date_trunc('month', current_date)
                 group by account_id,1,2
+        ),
+        account_name as (
+          select full_name, linked_account_id from aws_account_contact
         )
-        select CONCAT('#',account_id), SUM(ROUND(CAST(cost_this_month as numeric), 2)) as account_cost_$ FROM cost GROUP BY account_id
-    EOQ
-}
+        SELECT account_name.full_name, SUM(ROUND(CAST(cost.cost_this_month as numeric), 2)) as account_cost_$ FROM cost
+        FULL JOIN account_name 
+          ON cost.account_id=account_name.linked_account_id
+        GROUP BY account_name.full_name
+        EOQ
+        }
 
 query "forcasted_30_days" {
     sql = <<-EOQ
