@@ -8,6 +8,38 @@ query "aws_account" {
   EOQ
 }
 
+query "total_monthly_cost_by_account" {
+    sql = <<-EOQ
+        with cost as (
+            select dimension_1 as service_name,
+            account_id,
+            sum(net_unblended_cost_amount) as cost_this_month
+            from aws_cost_usage
+            where
+                granularity = 'MONTHLY'
+                and dimension_type_1 = 'SERVICE'
+                and dimension_type_2 = 'RECORD_TYPE'
+                and dimension_2 not in ('Credit')
+                and period_start >= date_trunc('month', current_date - interval '1' month)
+                and period_start < date_trunc('month', current_date)
+                group by account_id,1,2
+        )
+        select CONCAT('#',account_id), SUM(ROUND(CAST(cost_this_month as numeric), 2)) as account_cost_$ FROM cost GROUP BY account_id
+    EOQ
+}
+
+query "forcasted_30_days" {
+    sql = <<-EOQ
+        select to_char(period_end, 'DD-MM-YYYY') as date, 
+        ROUND(CAST(mean_value as numeric), 2) as cost 
+        from aws_cost_forecast_daily
+        where account_id = $1
+        order by period_end asc
+        LIMIT 30
+    EOQ
+    param "account_id" {}
+}
+
 
 query "aws_total_daily_account_cost" {
   sql = <<-EOQ
@@ -91,6 +123,13 @@ dashboard "milkFloat_FinOps_Dashboard" {
       query = query.aws_total_monthly_account_cost
       width = 3
     }
+
+    chart {
+        type  = "donut"
+        title = "Total Monthly Cost per Account (Current Month)"
+        sql = query.total_monthly_cost_by_account.sql
+        width = 6
+    }
   }
 
   input "account_id" {
@@ -139,6 +178,18 @@ dashboard "milkFloat_FinOps_Dashboard" {
         args = {
           "account_id" = self.input.account_id.value
         }
+      }
+    }
+
+    container {
+        chart {
+            type  = "line"
+            title = "Next 30 Days Predicted Total Account Cost [$]"
+            query = query.forcasted_30_days
+            width = 6
+            args = {
+                "account_id" = self.input.account_id.value
+            }
       }
     }
   }
