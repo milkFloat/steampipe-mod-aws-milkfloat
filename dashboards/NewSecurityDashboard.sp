@@ -1,13 +1,13 @@
 query "cis_benchmark_percentage" {
     sql = <<-EOQ
         with all_failed as (
-            select count(*) as all_failed
+            select count(id) as all_failed
             from (
                 select id from aws_securityhub_finding where updated_at > date_trunc('day', current_date) and account_id != '584676501372' AND record_state = 'ACTIVE' and compliance_status = 'FAILED' order by updated_at desc
             ) t
         ),
         all_passes as (
-            select count(*) as passed_count
+            select count(id) as passed_count
             from (
                 select id from aws_securityhub_finding where updated_at > date_trunc('day', current_date) and account_id != '584676501372' AND record_state = 'ACTIVE' and compliance_status = 'PASSED' order by updated_at desc
             ) t
@@ -75,6 +75,7 @@ dashboard "milkFloat_Security_Dashboard2" {
             query = query.cis_benchmark_percentage
             width = 2
             icon = "security"
+            href = "${dashboard.milkfloat_security_hub_failures.url_path}"
         }
         card {
             query = query.number_of_accounts_with_excessive_permissions
