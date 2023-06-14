@@ -1,7 +1,6 @@
 query "aws_total_daily_account_cost_by_account_id" {
   sql = <<-EOQ
-    select round(cast(sum(unblended_cost_amount) as numeric), 2) as value,
-    'Cost today for this account' as label
+    select round(cast(sum(unblended_cost_amount) as numeric), 2) as "Estimated cost today for this account"
     from aws_cost_by_account_daily 
     where period_start >= date_trunc('day', current_date - interval '1' day)
     and account_id = $1
@@ -11,8 +10,7 @@ query "aws_total_daily_account_cost_by_account_id" {
 
 query "aws_total_monthly_account_cost_by_account_id" {
   sql = <<-EOQ
-    select round(cast(sum(unblended_cost_amount) as numeric), 2) as value,
-    'Monthly costs for this account' as label
+    select round(cast(sum(unblended_cost_amount) as numeric), 2) as "Estimated monthly costs for this account"
     from aws_cost_by_account_monthly 
     where period_start >= date_trunc('month', current_date - interval '0' month)
     and account_id = $1
@@ -164,8 +162,9 @@ dashboard "milkFloat_FinOps_Dashboard_Filter_By_Account" {
     container {
         card {
             query = query.aws_total_daily_account_cost_by_account_id
-            width = 2
+            width = 3
             icon = "attach_money"
+            type = "info"
             args = {
                 "account_id" = self.input.account_id.value 
             }
@@ -173,8 +172,9 @@ dashboard "milkFloat_FinOps_Dashboard_Filter_By_Account" {
 
         card {
             query = query.aws_total_monthly_account_cost_by_account_id
-            width = 2
+            width = 3
             icon = "attach_money"
+            type = "info"
             args = {
                 "account_id" = self.input.account_id.value 
             }
@@ -229,7 +229,7 @@ dashboard "milkFloat_FinOps_Dashboard_Filter_By_Account" {
                 axes {
                     y {
                         title {
-                            value = "Cost"
+                            value = "Cost ($)"
                         }
                     }
                 }
