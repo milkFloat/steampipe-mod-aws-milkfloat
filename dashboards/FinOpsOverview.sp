@@ -32,7 +32,7 @@ query "total_monthly_cost_by_account" {
           ON cost.account_id=account_name.linked_account_id
         GROUP BY account_name.full_name
         EOQ
-        }
+}
 
 query "forcasted_30_days" {
     sql = <<-EOQ
