@@ -204,7 +204,7 @@ dashboard "milkFloat_FinOps_Dashboard_Filter_By_Account" {
         container {
             chart {
                 type  = "line"
-                title = "Next 30 Days Predicted Total Account Cost [$]"
+                title = "Next 30 Days Predicted Total Account Cost"
                 query = query.forcasted_30_days
                 axes {
                     x {
