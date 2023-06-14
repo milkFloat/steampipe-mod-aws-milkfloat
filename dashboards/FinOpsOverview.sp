@@ -20,13 +20,14 @@ query "total_monthly_cost_by_account" {
         EOQ
 }
 
-query "aws_annual_forcasted_total_cost" {
+query "next_month_prediction_based_on_previous_6_month_avg" {
     sql = <<-EOQ
-      select SUM(ROUND(CAST(mean_value as numeric), 2)) as value,
-      'Annual costs for all accounts (estimated)' as label
-      from aws_cost_forecast_monthly
-      WHERE account_id != '584676501372'
-      AND period_start >= current_date
+      select ROUND(SUM(CAST(unblended_cost_amount as numeric))/6, 2) as value,
+      'Next Month Cost Based on 6 month Rolling Average (estimated)' as label
+      from aws_cost_by_account_monthly 
+      where account_id != '584676501372' 
+        and estimated = false
+        and period_end <= date_trunc('month', current_date - interval '5' month)
     EOQ
 }
 
@@ -63,10 +64,8 @@ query "aws_total_monthly_account_cost" {
 }
 
 
-
-
 dashboard "milkFloat_FinOps_Dashboard" {
-    title = "milkFloat FinOps Dashboard"
+  title = "milkFloat FinOps Dashboard"
 
   container {
     card {
@@ -74,35 +73,29 @@ dashboard "milkFloat_FinOps_Dashboard" {
       width = 2
       icon = "attach_money"
     }
-
     card {
       query = query.aws_total_monthly_account_cost
       width = 3
     }
-
     card {
       width = 3
-      sql = query.aws_annual_forcasted_total_cost.sql
+      sql = query.next_month_prediction_based_on_previous_6_month_avg.sql
       icon = "attach_money"
-      }
-
+    }
     chart {
         type  = "donut"
         title = "Total Monthly Cost per Account (Current Month)"
         sql = query.total_monthly_cost_by_account.sql
         width = 6
     }
-  }
-
-
-  container {
-    card {
-      label = "Filter by Account Id"
-      icon = "group"
-       width = 2
-       href  = "${dashboard.milkFloat_FinOps_Dashboard_Filter_By_Account.url_path}"
-       type = "info"
-       value = ""
-    }
+    container {
+        card {
+          label = "Filter by Account Id"
+          icon = "group"
+          width = 2
+          type = "info"
+          href = "${dashboard.milkFloat_FinOps_Dashboard_Filter_By_Account.url_path}"
+      }
+    }  
   }
 }

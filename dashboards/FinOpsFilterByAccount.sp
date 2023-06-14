@@ -46,6 +46,106 @@ query "forcasted_30_days" {
 }
 
 
+query "cost_by_service" {
+  sql = <<-EOQ
+    with
+    costs_this_month as (
+      select
+        dimension_1 as service_name,
+        replace(lower(trim(dimension_1)), ' ', '-') as service,
+        partition,
+        account_id,
+        _ctx,
+        net_unblended_cost_unit as unit,
+        sum(net_unblended_cost_amount) as cost_this_month,
+        region
+      from
+        aws_cost_usage
+      where
+        granularity = 'MONTHLY'
+        and account_id = $1 
+        and dimension_type_1 = 'SERVICE'
+        and dimension_type_2 = 'RECORD_TYPE'
+        and dimension_2 not in ('Credit')
+        and period_start >= date_trunc('month', current_date - interval '1' month)
+        and period_start < date_trunc('month', current_date)
+      group by
+        1,2,3,4,5,unit,region
+    ),
+     costs_one_month_prior as (
+      select
+        dimension_1 as service_name,
+        replace(lower(trim(dimension_1)), ' ', '-') as service,
+        partition,
+        account_id,
+        _ctx,
+        net_unblended_cost_unit as unit,
+        sum(net_unblended_cost_amount) as cost_1_month_ago,
+        region
+      from
+        aws_cost_usage
+      where
+        granularity = 'MONTHLY'
+        and account_id = $1 
+        and dimension_type_1 = 'SERVICE'
+        and dimension_type_2 = 'RECORD_TYPE'
+        and dimension_2 not in ('Credit')
+        and period_start >= date_trunc('month', current_date - interval '2' month)
+        and period_start < date_trunc('month', current_date - interval '1' month)
+      group by
+        1,2,3,4,5,unit,region
+    ),
+     costs_two_months_prior as (
+      select
+        dimension_1 as service_name,
+        replace(lower(trim(dimension_1)), ' ', '-') as service,
+        partition,
+        account_id,
+        _ctx,
+        net_unblended_cost_unit as unit,
+        sum(net_unblended_cost_amount) as cost_2_months_ago,
+        region
+      from
+        aws_cost_usage
+      where
+        granularity = 'MONTHLY'
+        and account_id = $1 
+        and dimension_type_1 = 'SERVICE'
+        and dimension_type_2 = 'RECORD_TYPE'
+        and dimension_2 not in ('Credit')
+        and period_start >= date_trunc('month', current_date - interval '3' month)
+        and period_start < date_trunc('month', current_date - interval '2' month)
+      group by
+        1,2,3,4,5,unit,region
+    )
+    SELECT 
+      distinct coalesce(costs_this_month.service,costs_one_month_prior.service,costs_two_months_prior.service) as service,
+    CASE
+      WHEN ROUND(CAST(costs_this_month.cost_this_month as numeric), 2) IS NULL THEN '0'
+      ELSE ROUND(CAST(costs_this_month.cost_this_month as numeric), 2)
+    END AS "Cost This Month ($)",
+    CASE
+      WHEN ROUND(CAST(costs_one_month_prior.cost_1_month_ago as numeric), 2) IS NULL THEN '0'
+      ELSE ROUND(CAST(costs_one_month_prior.cost_1_month_ago as numeric), 2)
+    END AS "Cost 1 Months Ago ($)",
+    CASE 
+      WHEN ROUND(CAST(costs_two_months_prior.cost_2_months_ago as numeric), 2) IS NULL THEN '0'
+      ELSE ROUND(CAST(costs_two_months_prior.cost_2_months_ago as numeric), 2)
+    END AS "Cost 2 Months Ago ($)"
+    FROM costs_this_month
+    FULL OUTER JOIN costs_one_month_prior ON
+      costs_this_month.service = costs_one_month_prior.service
+    FULL OUTER JOIN costs_two_months_prior ON
+      costs_this_month.service = costs_two_months_prior.service
+    group by costs_this_month.cost_this_month, costs_one_month_prior.cost_1_month_ago, costs_two_months_prior.cost_2_months_ago, costs_this_month.service, costs_one_month_prior.service,
+    costs_two_months_prior.service
+    order by "Cost This Month ($)" desc
+    LIMIT 10
+    EOQ
+    param "account_id" {}
+}
+
+
 
 
 dashboard "milkFloat_FinOps_Dashboard_Filter_By_Account" {
@@ -118,6 +218,24 @@ dashboard "milkFloat_FinOps_Dashboard_Filter_By_Account" {
                         }
                     }
                 }
+                args = {
+                    "account_id" = self.input.account_id.value
+                }
+            }
+        }
+        container {
+            chart {
+                type = "column"
+                axes {
+                    y {
+                        title {
+                            value = "Cost"
+                        }
+                    }
+                }
+                grouping = "compare"
+                title = "Cost Breakdown of Provisioned Services"
+                query = query.cost_by_service
                 args = {
                     "account_id" = self.input.account_id.value
                 }
