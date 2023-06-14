@@ -45,24 +45,79 @@ query "number_of_accounts_with_excessive_permissions" {
             WHEN number_of_excessive_accounts.excessive_accounts > 0 THEN 'alert'
         ELSE 'ok'
         END as type
-        from number_of_excessive_accounts
+        FROM number_of_excessive_accounts
     EOQ
 }
 
 query "number_of_accounts_with_mfa_disabled" {
     sql = <<-EOQ
-        with number_of_accounts_with_mfa_disabled as (
-            select count(*) as accounts_mfa_disabled_count
-            from aws_iam_user
-            where mfa_enabled = false
+        WITH number_of_accounts_with_mfa_disabled as (
+            SELECT 
+                count(*) as accounts_mfa_disabled_count
+            FROM aws_iam_user
+            WHERE mfa_enabled = false
         )
-        select 'Number of accounts with MFA disabled' as label,
+        SELECT 
+            'Number of accounts with MFA disabled' as label,
             number_of_accounts_with_mfa_disabled.accounts_mfa_disabled_count as value,
-        case
-            when number_of_accounts_with_mfa_disabled.accounts_mfa_disabled_count > 0 then 'alert'
-            else 'ok'
+        CASE
+            WHEN number_of_accounts_with_mfa_disabled.accounts_mfa_disabled_count > 0 then 'alert'
+            ELSE 'ok'
         end as type
-        from number_of_accounts_with_mfa_disabled
+        FROM number_of_accounts_with_mfa_disabled
+    EOQ
+}
+
+query "access_keys_summary" {
+    sql = <<-EOQ
+        SELECT 
+            access_key_id as "Access Key ID",
+            status as "Status",
+            create_date as "Created Date",
+            access_key_last_used_date as "Key Last Used",
+            account_id as "Account"
+        FROM aws_iam_access_key
+        WHERE (user_name != '' OR user_name IS NOT NULL)
+        ORDER BY "Status" asc
+        EOQ
+}
+
+query "non_compliant_keys" {
+    sql = <<-EOQ
+    with number_of_accounts as 
+    (SELECT
+          Count (*) as number_of_keys
+        FROM
+          aws_iam_credential_report
+        WHERE
+          access_key_1_last_rotated <= (current_date - interval '90' day)
+          OR access_key_2_last_rotated <= (current_date - interval '90' day)
+    )
+    SELECT 
+        'Number of Non Compliant Keys' as label,
+        number_of_accounts.number_of_keys as value
+    FROM number_of_accounts
+        EOQ
+}
+
+query "recent_logins" {
+    sql = <<-EOQ
+    WITH count_logins as (
+    SELECT
+        event_id AS "Event Id",
+        timestamp AS "Timestamp",
+        message_json->>'userIdentity' AS "User Identity"
+    FROM
+        aws_cloudwatch_log_event
+    WHERE
+        log_group_name = 'Dev-BLEAGovBaseStandalone-LoggingCloudTrailLogGroupEFC12822-Osc3j5K0guqc'
+        AND filter = '{($.eventName = "ConsoleLogin")}'
+        AND timestamp >= now() - interval '1 month'
+    )
+    SELECT 
+        'Number of Logins' as label, 
+        count(*) as value
+    FROM count_logins
     EOQ
 }
 
@@ -80,11 +135,29 @@ dashboard "milkFloat_Security_Dashboard2" {
             query = query.number_of_accounts_with_excessive_permissions
             width = 2
             icon = "group"
+            href = "${dashboard.milkFloat_Security_Dashboard_Details.url_path}"
         }
         card {
             query = query.number_of_accounts_with_mfa_disabled
             width = 2
             icon = "group"
+            href = "${dashboard.milkFloat_Security_Dashboard_Details.url_path}"
         }
+        card {
+            query = query.non_compliant_keys
+            width = 2
+            icon = "key"
+            href = "${dashboard.milkFloat_Security_Dashboard_Details.url_path}"
+        }
+        card {
+            query = query.recent_logins
+            width = 2
+            icon = "login"
+            href = "${dashboard.milkFloat_Security_Dashboard_Details.url_path}"
+        }
+    }
+    table {
+        title = "Overview of Access Keys"
+        query = query.access_keys_summary
     }
 }
