@@ -23,6 +23,7 @@ query "excessive_permission_accounts" {
       aws_iam_user
     WHERE
       principal_arn = arn
+      and coalesce(last_authenticated, now() - '400 days' :: interval) < now() - ($1 || ' days') :: interval
     GROUP BY
       aws_iam_user.name,
       aws_iam_user.account_id,
@@ -31,6 +32,27 @@ query "excessive_permission_accounts" {
     ORDER BY
       "Number of Excessive Permissions" DESC
   EOQ
+
+    param "threshold_in_days" {}
+}
+
+query "total_number_of_excessive_permissions" {
+    sql = <<-EOQ
+select
+  count(*) as value,
+  'Excessive Permissions Total' as label,
+  case
+    when count(*) = 0 then 'ok'
+    else 'alert'
+  end as type
+from
+  aws_iam_access_advisor,
+  aws_iam_user
+where
+  principal_arn = arn
+  and coalesce(last_authenticated, now() - '400 days' :: interval) < now() - ($1 || ' days') :: interval;
+    EOQ
+    param "threshold_in_days" {}
 }
 
 
@@ -70,10 +92,46 @@ dashboard "milkFloat_Security_Dashboard_Details" {
             query = query.number_of_accounts_with_excessive_permissions
             width = 3
         }
+        input "threshold_in_days" {
+        title = "Last Authenticated Threshold"
+        width = 2
+
+            option "30" {
+                label = "More than 30 days ago"
+            }
+            option "60" {
+                label = "More than 60 days ago"
+            }
+            option "90" {
+                label = "More than 90 days ago"
+            }
+            option "180" {
+                label = "More than 180 days ago"
+            }
+            option "360" {
+                label = "More than 360 days ago"
+            }
+        }
+       
+    }
+    container{
+         card {
+            query = query.total_number_of_excessive_permissions
+            width = 3
+
+              args = {
+                threshold_in_days = self.input.threshold_in_days.value
+            }
+        }
         table {
             title = "Account Permissions"
             query = query.excessive_permission_accounts
             width = 8
+
+            args = {
+                threshold_in_days = self.input.threshold_in_days.value
+            }
+            
         }
     }
     container {
