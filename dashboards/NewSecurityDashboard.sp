@@ -32,9 +32,9 @@ query "cis_benchmark_percentage" {
 
 query "number_of_accounts_with_excessive_permissions" {
     sql = <<-EOQ
-        select
-  count(*) as value,
-  'Excessive Permissions' as label,
+select
+  count(distinct principal_arn) as value,
+  'Users With Excessive Permissions' as label,
   case
     when count(*) = 0 then 'ok'
     else 'alert'
