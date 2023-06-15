@@ -11,18 +11,29 @@ query "mfa_disabled_accounts" {
 }
 
 query "excessive_permission_accounts" {
-    sql = <<-EOQ
-        SELECT
-            name as "Name", 
-            account_id as "Account ID", 
-            create_date as "Created Date",
-            inline_policies as "Inline Policies",
-        CASE 
-        WHEN jsonb_array_length(inline_policies) > 10 THEN 'true' else 'false' end as "Excessive Permissions" 
-        FROM aws_iam_user 
-        ORDER BY "Excessive Permissions" desc
-        EOQ
+  sql = <<-EOQ
+    SELECT
+      aws_iam_user.name as "Name",
+      aws_iam_user.account_id as "Account ID",
+      TO_CHAR(aws_iam_user.create_date, 'DD-MM-YYYY') as "Created Date",
+      aws_iam_user.inline_policies as "Inline Policies",
+      COUNT(*) as "Number of Excessive Permissions"
+    FROM
+      aws_iam_access_advisor,
+      aws_iam_user
+    WHERE
+      principal_arn = arn
+    GROUP BY
+      aws_iam_user.name,
+      aws_iam_user.account_id,
+      aws_iam_user.create_date,
+      aws_iam_user.inline_policies
+    ORDER BY
+      "Number of Excessive Permissions" DESC
+  EOQ
 }
+
+
 
 query "access_keys_older_than_90_days" {
     sql = <<-EOQ
