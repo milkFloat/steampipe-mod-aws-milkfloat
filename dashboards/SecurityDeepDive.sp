@@ -12,49 +12,23 @@ query "mfa_disabled_accounts" {
 
 query "excessive_permission_accounts" {
   sql = <<-EOQ
-    SELECT
-      aws_iam_user.name as "Name",
-      aws_iam_user.account_id as "Account ID",
-      TO_CHAR(aws_iam_user.create_date, 'DD-MM-YYYY') as "Created Date",
-      aws_iam_user.inline_policies as "Inline Policies",
-      COUNT(*) as "Number of Excessive Permissions"
-    FROM
-      aws_iam_access_advisor,
-      aws_iam_user
-    WHERE
-      principal_arn = arn
-      and coalesce(last_authenticated, now() - '400 days' :: interval) < now() - ($1 || ' days') :: interval
-    GROUP BY
-      aws_iam_user.name,
-      aws_iam_user.account_id,
-      aws_iam_user.create_date,
-      aws_iam_user.inline_policies
-    ORDER BY
-      "Number of Excessive Permissions" DESC
+          SELECT
+          u.name AS "User Name",
+          aa.service_name AS "Service",
+          aa.service_namespace AS "Service Namespace"
+        FROM
+          aws_iam_access_advisor AS aa
+        JOIN
+          aws_iam_user AS u ON aa.principal_arn = u.arn
+        JOIN
+          aws_account AS a ON u.account_id = a.account_id
+        WHERE
+          aa.last_authenticated IS NULL
+        ORDER BY
+          u.name;
+
   EOQ
-
-    param "threshold_in_days" {}
 }
-
-query "total_number_of_excessive_permissions" {
-    sql = <<-EOQ
-select
-  count(*) as value,
-  'Excessive Permissions Total' as label,
-  case
-    when count(*) = 0 then 'ok'
-    else 'alert'
-  end as type
-from
-  aws_iam_access_advisor,
-  aws_iam_user
-where
-  principal_arn = arn
-  and coalesce(last_authenticated, now() - '400 days' :: interval) < now() - ($1 || ' days') :: interval;
-    EOQ
-    param "threshold_in_days" {}
-}
-
 
 
 query "access_keys_older_than_90_days" {
@@ -92,46 +66,10 @@ dashboard "milkFloat_Security_Dashboard_Details" {
             query = query.number_of_accounts_with_excessive_permissions
             width = 3
         }
-        input "threshold_in_days" {
-        title = "Last Authenticated Threshold"
-        width = 2
-
-            option "30" {
-                label = "More than 30 days ago"
-            }
-            option "60" {
-                label = "More than 60 days ago"
-            }
-            option "90" {
-                label = "More than 90 days ago"
-            }
-            option "180" {
-                label = "More than 180 days ago"
-            }
-            option "360" {
-                label = "More than 360 days ago"
-            }
-        }
-       
-    }
-    container{
-         card {
-            query = query.total_number_of_excessive_permissions
-            width = 3
-
-              args = {
-                threshold_in_days = self.input.threshold_in_days.value
-            }
-        }
         table {
-            title = "Account Permissions"
+            title = "Account Permissions (Excessive - Not in use)"
             query = query.excessive_permission_accounts
-            width = 8
-
-            args = {
-                threshold_in_days = self.input.threshold_in_days.value
-            }
-            
+            width = 8            
         }
     }
     container {
