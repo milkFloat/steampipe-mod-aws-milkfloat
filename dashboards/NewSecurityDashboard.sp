@@ -32,20 +32,18 @@ query "cis_benchmark_percentage" {
 
 query "number_of_accounts_with_excessive_permissions" {
     sql = <<-EOQ
-        with number_of_excessive_accounts as (
-            SELECT 
-            count(*) as excessive_accounts
-            FROM
-            aws_iam_user
-            WHERE jsonb_array_length(inline_policies) > 10
-        )
-        SELECT 'Number of accounts with excessive permissions' as label,
-        number_of_excessive_accounts.excessive_accounts as value,
-        CASE
-            WHEN number_of_excessive_accounts.excessive_accounts > 0 THEN 'alert'
-        ELSE 'ok'
-        END as type
-        FROM number_of_excessive_accounts
+select
+  count(distinct principal_arn) as value,
+  'Users With Excessive Permissions' as label,
+  case
+    when count(*) = 0 then 'ok'
+    else 'alert'
+  end as type
+from
+  aws_iam_access_advisor,
+  aws_iam_user
+where
+  principal_arn = arn
     EOQ
 }
 
