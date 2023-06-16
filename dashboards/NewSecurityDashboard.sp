@@ -21,7 +21,7 @@ query "cis_benchmark_percentage" {
             from total_tests, all_passes
         )
         select percentage_pass.pass_percent as value, 
-        'CIS 1.2 Percentage Pass' as label,
+        'Percentage Pass' as label,
         CASE
             WHEN percentage_pass.pass_percent < 95 THEN 'alert'
             ELSE 'ok'
@@ -121,16 +121,69 @@ query "recent_logins" {
     EOQ
 }
 
+query "DetectionUnauthorisedAPICallsAlarm" {
+    sql = <<-EOQ
+        select count(name),
+        case
+            when count(name) > 0 then 'alert'
+            else 'ok'
+        end as type
+        from aws_cloudwatch_alarm 
+        where title like 'Dev-BLEAGovBaseStandalone-DetectionUnauthorisedAPICallsAlarm%'
+        and state_value = 'ALARM'
+    EOQ
+}
+
+query "DetectionUnauthorizedAttemptsAlarm" {
+    sql = <<-EOQ
+        select count(name),
+        case
+            when count(name) > 0 then 'alert'
+            else 'ok'
+        end as type
+        from aws_cloudwatch_alarm 
+        where title like 'Dev-BLEAGovBaseStandalone-DetectionUnauthorizedAttemptsAlarm%'
+        and state_value = 'ALARM'
+    EOQ
+}
+
 
 dashboard "milkFloat_Security_Dashboard2" {
     title = "milkFloat Security Dashboard2"
 
     container {
+        text {
+            value = <<-EOM
+                ### Security Compliance and Alerts
+            EOM
+        }
         card {
             query = query.cis_benchmark_percentage
             width = 2
             icon = "security"
             href = "${dashboard.milkfloat_security_hub_failures.url_path}"
+            title = "CIS 1.2"
+        }
+        card {
+            query = query.DetectionUnauthorisedAPICallsAlarm
+            width = 2
+            icon = "security"
+            href = "${dashboard.milkFloat_Security_Dashboard_Details.url_path}"
+            title = "Unauthorised API Calls"
+        }
+        card {
+            query = query.DetectionUnauthorizedAttemptsAlarm
+            width = 2
+            icon = "security"
+            href = "${dashboard.milkFloat_Security_Dashboard_Details.url_path}"
+            title = "Unauthorised Attempts"
+        }
+    }
+    container {
+        text {
+            value = <<-EOM
+                ### Account Security
+            EOM
         }
         card {
             query = query.number_of_accounts_with_excessive_permissions
