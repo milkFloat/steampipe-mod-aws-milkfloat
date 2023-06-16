@@ -1,344 +1,216 @@
-dashboard "milkfloat_security_dashboard" {
-  title = "milkFloat Security Dashboard"
-
-  container {
-    card {
-      width = 4
-      sql = <<-EOQ
-        SELECT
-          CONCAT('MFA Status - [', name, ']') AS label,
-          CASE
-            WHEN mfa_enabled THEN 'Enabled'
-            ELSE 'Disabled'
-          END AS value,
-          CASE
-            WHEN mfa_enabled THEN 'ok'
-            ELSE 'alert'
-          END AS type
-        FROM
-          aws_iam_user
-      EOQ
-    }
-
-    card {
-      width = 4
-      sql = <<-EOQ
-        SELECT
-          CONCAT('Excessive Permissions - [', name, ']') AS label,
-          CASE
-            WHEN jsonb_array_length(inline_policies) > 10 THEN 'Excessive'
-            ELSE 'Non Excessive'
-          END AS value,
-          CASE
-            WHEN jsonb_array_length(inline_policies) > 10 THEN 'alert'
+query "cis_benchmark_percentage" {
+    sql = <<-EOQ
+        with all_failed as (
+            select count(id) as all_failed
+            from (
+                select id from aws_securityhub_finding where updated_at > date_trunc('day', current_date) and account_id != '584676501372' AND record_state = 'ACTIVE' and compliance_status = 'FAILED' order by updated_at desc
+            ) t
+        ),
+        all_passes as (
+            select count(id) as passed_count
+            from (
+                select id from aws_securityhub_finding where updated_at > date_trunc('day', current_date) and account_id != '584676501372' AND record_state = 'ACTIVE' and compliance_status = 'PASSED' order by updated_at desc
+            ) t
+        ),
+        total_tests as (
+            select (all_failed.all_failed + all_passes.passed_count) as total
+            from all_failed, all_passes
+        ),
+        percentage_pass as (
+            select round(cast(((cast(all_passes.passed_count as float)) / (cast(total_tests.total as float)) * 100) as numeric), 2) as pass_percent
+            from total_tests, all_passes
+        )
+        select percentage_pass.pass_percent as value, 
+        'Percentage Pass' as label,
+        CASE
+            WHEN percentage_pass.pass_percent < 95 THEN 'alert'
             ELSE 'ok'
-          END AS type
-        FROM
-          aws_iam_user
-      EOQ
-    }
-
-    card {
-  sql = <<-EOQ
-    SELECT
-      'Logging Status' AS label,
-      CASE
-        WHEN COUNT(*) > 0 THEN 'Logging Stopped'
-        ELSE 'Logging Active'
-      END AS value,
-      CASE
-        WHEN COUNT(*) > 0 THEN 'alert'
-        ELSE 'ok'
-      END AS type
-    FROM
-      aws_cloudwatch_log_event
-    WHERE
-      log_group_name = 'Dev-BLEAGovBaseStandalone-LoggingCloudTrailLogGroupEFC12822-Osc3j5K0guqc'
-      AND filter = '{($.eventName = "StopLogging")}'
-      AND timestamp >= now() - interval '1 month'
-  EOQ
-  width = 4
+        END as type
+        from percentage_pass
+    EOQ
 }
 
+query "number_of_accounts_with_excessive_permissions" {
+    sql = <<-EOQ
+select
+  count(distinct principal_arn) as value,
+  'Users With Excessive Permissions' as label,
+  case
+    when count(principal_arn) = 0 then 'ok'
+    else 'alert'
+  end as type
+from
+  aws_iam_access_advisor,
+  aws_iam_user
+where
+  principal_arn = arn
+    EOQ
+}
 
+query "number_of_accounts_with_mfa_disabled" {
+    sql = <<-EOQ
+        WITH number_of_accounts_with_mfa_disabled as (
+            SELECT 
+                count(mfa_enabled) as accounts_mfa_disabled_count
+            FROM aws_iam_user
+            WHERE mfa_enabled = false
+        )
+        SELECT 
+            'Number of accounts with MFA disabled' as label,
+            number_of_accounts_with_mfa_disabled.accounts_mfa_disabled_count as value,
+        CASE
+            WHEN number_of_accounts_with_mfa_disabled.accounts_mfa_disabled_count > 0 then 'alert'
+            ELSE 'ok'
+        end as type
+        FROM number_of_accounts_with_mfa_disabled
+    EOQ
+}
 
-    table {
-      title = "APIs not configured with private endpoints"
-      width = 6
-      sql = <<-EOQ
-        SELECT
-          name,
-          api_id,
-          api_key_source,
-          endpoint_configuration_types,
-          endpoint_configuration_vpc_endpoint_ids
-        FROM
-          aws_api_gateway_rest_api
-        WHERE
-          NOT endpoint_configuration_types ? 'PRIVATE'
-      EOQ
-    }
+query "access_keys_summary" {
+    sql = <<-EOQ
+        SELECT 
+            access_key_id as "Access Key ID",
+            status as "Status",
+            create_date as "Created Date",
+            access_key_last_used_date as "Key Last Used",
+            account_id as "Account"
+        FROM aws_iam_access_key
+        WHERE (user_name != '' OR user_name IS NOT NULL)
+        ORDER BY "Status" asc
+        EOQ
+}
 
-    table {
-      title = "APIs with policy statements granting external OR anonymous access"
-      width = 6
-      sql = <<-EOQ
-        SELECT
-          title,
-          p AS principal,
-          a AS action,
-          s ->> 'Effect' AS effect,
-          s -> 'Condition' AS conditions
-        FROM
-          aws_api_gateway_rest_api,
-          jsonb_array_elements(policy_std -> 'Statement') AS s,
-          jsonb_array_elements_text(s -> 'Principal' -> 'AWS') AS p,
-          jsonb_array_elements_text(s -> 'Action') AS a
-        WHERE
-          p = '*' AND s ->> 'Effect' = 'Allow'
-        UNION ALL
-        SELECT
-          name,
-          p AS principal,
-          a AS action,
-          s ->> 'Effect' AS effect,
-          s -> 'Condition' AS conditions
-        FROM
-          aws_api_gateway_rest_api,
-          jsonb_array_elements(policy_std -> 'Statement') AS s,
-          jsonb_array_elements_text(s -> 'Principal' -> 'AWS') AS p,
-          string_to_array(p, ':') AS pa,
-          jsonb_array_elements_text(s -> 'Action') AS a
-        WHERE
-          s ->> 'Effect' = 'Allow'
-          AND (pa[5] != account_id OR p = '*')
-      EOQ
-    }
-
-    table {
-      title = "Access Key Report"
-      width = 6
-      sql = <<-EOQ
-        SELECT
-          *
-        FROM
-          aws_iam_access_key
-        WHERE
-          status = 'Active'
-          AND (user_name != '' OR user_name IS NOT NULL)
-      EOQ
-    }
-
-    table {
-      title = "Access keys older than 90 days"
-      width = 6
-      sql = <<-EOQ
-        SELECT
-          user_name,
-          access_key_1_last_rotated,
-          age(access_key_1_last_rotated) AS access_key_1_age,
-          access_key_2_last_rotated,
-          age(access_key_2_last_rotated) AS access_key_2_age
+query "non_compliant_keys" {
+    sql = <<-EOQ
+    with number_of_accounts as 
+    (SELECT
+          Count (access_key_1_last_rotated) as number_of_keys
         FROM
           aws_iam_credential_report
         WHERE
           access_key_1_last_rotated <= (current_date - interval '90' day)
           OR access_key_2_last_rotated <= (current_date - interval '90' day)
-        ORDER BY
-          user_name
-      EOQ
-    }
-
-    table {
-      title = "Recent Logins (Past Month)"
-      width = 6
-      sql = <<-EOQ
-        SELECT
-          event_id AS "Event Id",
-          timestamp AS "Timestamp",
-          message_json->>'userIdentity' AS "User Identity"
-        FROM
-          aws_cloudwatch_log_event
-        WHERE
-          log_group_name = 'Dev-BLEAGovBaseStandalone-LoggingCloudTrailLogGroupEFC12822-Osc3j5K0guqc'
-          AND filter = '{($.eventName = "ConsoleLogin")}'
-          AND timestamp >= now() - interval '1 month'
-        LIMIT 10
-      EOQ
-    }
-
-    table {
-      title = "Password Changes (Past Month)"
-      width = 6
-      sql = <<-EOQ
-        SELECT
-          event_id AS "Event Id",
-          timestamp AS "Timestamp",
-          message_json->>'userIdentity' AS "User Identity"
-        FROM
-          aws_cloudwatch_log_event
-        WHERE
-          log_group_name = 'Dev-BLEAGovBaseStandalone-LoggingCloudTrailLogGroupEFC12822-Osc3j5K0guqc'
-          AND filter = '{($.eventName = "ChangePassword")}'
-          AND timestamp >= now() - interval '1 month'
-      EOQ
-    }
-
-    table {
-      title = "New Users (Past Month)"
-      width = 6
-      sql = <<-EOQ
-        SELECT
-          event_id AS "Event Id",
-          timestamp AS "Timestamp",
-          message_json->>'userIdentity' AS "User Identity"
-        FROM
-          aws_cloudwatch_log_event
-        WHERE
-          log_group_name = 'Dev-BLEAGovBaseStandalone-LoggingCloudTrailLogGroupEFC12822-Osc3j5K0guqc'
-          AND filter = '{($.eventName = "CreateUser")}'
-          AND timestamp >= now() - interval '1 month'
-      EOQ
-    }
-
-    table {
-      title = "Deleted Users (Past Month)"
-      width = 6
-      sql = <<-EOQ
-        SELECT
-          event_id AS "Event Id",
-          timestamp AS "Timestamp",
-          message_json->>'userIdentity' AS "User Identity"
-        FROM
-          aws_cloudwatch_log_event
-        WHERE
-          log_group_name = 'Dev-BLEAGovBaseStandalone-LoggingCloudTrailLogGroupEFC12822-Osc3j5K0guqc'
-          AND filter = '{($.eventName = "DeleteUser")}'
-          AND timestamp >= now() - interval '1 month'
-      EOQ
-    }
-
-    table {
-      title = "Recent Errors Report"
-      width = 15
-      sql = <<-EOQ
-        SELECT
-          timestamp,
-          message_json->>'eventName' AS "Event Name",
-          message_json->>'sourceIPAddress' AS "Source IP Address",
-          message_json->>'userAgent' AS "User Agent",
-          message_json->>'errorMessage' AS "Error Message",
-          message_json->>'requestID' AS "Request ID",
-          message_json->>'errorCode' AS "Error Code"
-        FROM
-          aws_cloudwatch_log_event
-        WHERE
-          message_json->>'errorMessage' IS NOT NULL
-          AND log_group_name = 'Dev-BLEAGovBaseStandalone-LoggingCloudTrailLogGroupEFC12822-Osc3j5K0guqc'
-        LIMIT 10
-      EOQ
-    }
-
-    card {
-      width = 10
-      title = "AWS Schema Access"
-      sql = <<-EOQ
-        SELECT
-          DISTINCT grantee
-        FROM
-          information_schema.table_privileges
-        WHERE
-          table_schema = 'aws'
-      EOQ
-      type = "table"
-    }
-
-    card {
-      width = 2
-      sql = <<-EOQ
-        SELECT
-          COUNT(*) AS "(AWS Only) Datasets"
-        FROM
-          information_schema.tables
-        WHERE
-          table_schema = 'aws'
-      EOQ
-      icon = "hashtag"
-    }
-
-    
-
-    input "schema_input" {
-      width = 4
-      sql = <<-EOQ
-        SELECT
-          table_schema AS label,
-          table_schema AS value
-        FROM
-          information_schema.tables
-        WHERE
-          table_schema = 'aws'
-        GROUP BY
-          table_schema
-      EOQ
-    }
-
-    flow {
-      title = "Datasets (aws_schema only)"
-      node {
-        sql = <<-EOQ
-          SELECT
-            table_schema AS id,
-            table_schema AS title
-          FROM
-            information_schema.tables
-          WHERE
-            table_schema = $1
+    )
+    SELECT 
+        'Number of Non Compliant Keys' as label,
+        number_of_accounts.number_of_keys as value
+    FROM number_of_accounts
         EOQ
-        args = [self.input.schema_input.value]
-      }
-      node {
-        sql = <<-EOQ
-          SELECT
-            table_name AS id,
-            table_name AS title
-          FROM
-            information_schema.tables
-          WHERE
-            table_schema = $1
-        EOQ
-        args = [self.input.schema_input.value]
-      }
-      edge {
-        sql = <<-EOQ
-          SELECT
-            table_schema AS from_id,
-            table_name AS to_id
-          FROM
-            information_schema.tables
-          WHERE
-            table_schema = $1
-        EOQ
-        args = [self.input.schema_input.value]
-      }
-    }
+}
 
-    table {
-      title = "Datasets and Access (Non-AWS)"
-      width = 15
-      sql = <<-EOQ
-        SELECT
-          table_schema,
-          table_name,
-          grantee,
-          privilege_type
-        FROM
-          information_schema.table_privileges
-        WHERE
-          table_schema NOT IN ('information_schema', 'pg_catalog', 'aws')
-          AND table_name <> 'table_name'
-        LIMIT 10
-      EOQ
+query "recent_logins" {
+    sql = <<-EOQ
+    WITH count_logins as (
+    SELECT
+        event_id AS "Event Id",
+        timestamp AS "Timestamp",
+        message_json->>'userIdentity' AS "User Identity",
+        account_id
+    FROM
+        aws_cloudwatch_log_event
+    WHERE
+        log_group_name = 'Dev-BLEAGovBaseStandalone-LoggingCloudTrailLogGroupEFC12822-Osc3j5K0guqc'
+        AND filter = '{($.eventName = "ConsoleLogin")}'
+        AND timestamp >= now() - interval '1 month'
+    )
+    SELECT 
+        'Number of Logins' as label, 
+        count(account_id) as value
+    FROM count_logins
+    EOQ
+}
+
+query "DetectionUnauthorisedAPICallsAlarm" {
+    sql = <<-EOQ
+        select count(name),
+        case
+            when count(name) > 0 then 'alert'
+            else 'ok'
+        end as type
+        from aws_cloudwatch_alarm 
+        where title like 'Dev-BLEAGovBaseStandalone-DetectionUnauthorisedAPICallsAlarm%'
+        and state_value = 'ALARM'
+    EOQ
+}
+
+query "DetectionUnauthorizedAttemptsAlarm" {
+    sql = <<-EOQ
+        select count(name),
+        case
+            when count(name) > 0 then 'alert'
+            else 'ok'
+        end as type
+        from aws_cloudwatch_alarm 
+        where title like 'Dev-BLEAGovBaseStandalone-DetectionUnauthorizedAttemptsAlarm%'
+        and state_value = 'ALARM'
+    EOQ
+}
+
+
+dashboard "milkFloat_Security_Dashboard" {
+    title = "milkFloat Security Dashboard"
+
+    container {
+        text {
+            value = <<-EOM
+                ### Security Compliance and Alerts
+            EOM
+        }
+        card {
+            query = query.cis_benchmark_percentage
+            width = 2
+            icon = "security"
+            href = "${dashboard.milkfloat_security_and_compliance_detail.url_path}"
+            title = "CIS 1.2"
+        }
+        card {
+            query = query.DetectionUnauthorisedAPICallsAlarm
+            width = 2
+            icon = "security"
+            href = "${dashboard.milkfloat_security_and_compliance_detail.url_path}"
+            title = "Unauthorised API Calls"
+        }
+        card {
+            query = query.DetectionUnauthorizedAttemptsAlarm
+            width = 2
+            icon = "security"
+            href = "${dashboard.milkfloat_security_and_compliance_detail.url_path}"
+            title = "Unauthorised Attempts"
+        }
     }
-  }
+    container {
+        text {
+            value = <<-EOM
+                ### Account Security
+            EOM
+        }
+        card {
+            query = query.number_of_accounts_with_excessive_permissions
+            width = 2
+            icon = "group"
+            href = "${dashboard.milkFloat_Security_Dashboard_Details.url_path}"
+        }
+        card {
+            query = query.number_of_accounts_with_mfa_disabled
+            width = 2
+            icon = "group"
+            href = "${dashboard.milkFloat_Security_Dashboard_Details.url_path}"
+        }
+        card {
+            query = query.non_compliant_keys
+            width = 2
+            icon = "key"
+            href = "${dashboard.milkFloat_Security_Dashboard_Details.url_path}"
+        }
+        #card {
+        #    query = query.recent_logins
+        #    width = 2
+        #    icon = "login"
+        #    href = "${dashboard.milkFloat_Security_Dashboard_Details.url_path}"
+        #}
+    }
+    table {
+        title = "Overview of Access Keys"
+        query = query.access_keys_summary
+    }
 }
