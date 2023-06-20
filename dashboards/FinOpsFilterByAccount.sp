@@ -64,6 +64,7 @@ query "cost_by_service" {
         and account_id = $1 
         and dimension_type_1 = 'SERVICE'
         and dimension_type_2 = 'RECORD_TYPE'
+        and dimension_1 != 'Tax'
         and dimension_2 not in ('Credit')
         and period_start >= date_trunc('month', current_date - interval '1' month)
         and period_start < date_trunc('month', current_date)
@@ -87,6 +88,7 @@ query "cost_by_service" {
         and account_id = $1 
         and dimension_type_1 = 'SERVICE'
         and dimension_type_2 = 'RECORD_TYPE'
+        and dimension_1 != 'Tax'
         and dimension_2 not in ('Credit')
         and period_start >= date_trunc('month', current_date - interval '2' month)
         and period_start < date_trunc('month', current_date - interval '1' month)
@@ -110,6 +112,7 @@ query "cost_by_service" {
         and account_id = $1 
         and dimension_type_1 = 'SERVICE'
         and dimension_type_2 = 'RECORD_TYPE'
+        and dimension_1 != 'Tax'
         and dimension_2 not in ('Credit')
         and period_start >= date_trunc('month', current_date - interval '3' month)
         and period_start < date_trunc('month', current_date - interval '2' month)
