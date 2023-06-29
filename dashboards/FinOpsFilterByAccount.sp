@@ -18,29 +18,33 @@ query "aws_total_monthly_account_cost_by_account_id" {
   param "account_id" {}
 }
 
-query "aws_last_30_days_daily_cost_for_account" {
+query "aws_60_days" {
   sql = <<-EOQ
-    select to_char(period_start, 'DD-MM') as day, 
-    round(cast(unblended_cost_amount as numeric), 2) as cost 
-    from aws_cost_by_account_daily 
-    where account_id = $1 
-    order by period_start desc 
-    limit 30
+  WITH temp as(
+    WITH t1 as (
+      SELECT to_char(period_end, 'DD-MM') as day, period_start, 
+        ROUND(CAST(mean_value as numeric), 2) as cost 
+        FROM aws_cost_forecast_daily
+        WHERE account_id = $1
+        ORDER BY period_end asc
+        LIMIT 30
+        ), 
+      t2 as (
+      SELECT TO_CHAR(period_start, 'DD-MM') as day, period_start, 
+        ROUND(CAST(unblended_cost_amount as numeric), 2) as cost 
+        FROM aws_cost_by_account_daily 
+        WHERE account_id = $1
+        ORDER BY period_start desc 
+        LIMIT 30
+        )
+    SELECT * FROM t1 
+    UNION 
+    SELECT * from t2
+    ORDER BY period_start asc
+    )
+  SELECT day, cost from temp
   EOQ
   param "account_id" {}
-}
-
-
-query "forcasted_30_days" {
-    sql = <<-EOQ
-        select to_char(period_end, 'DD-MM') as date, 
-        ROUND(CAST(mean_value as numeric), 2) as cost 
-        from aws_cost_forecast_daily
-        where account_id = $1
-        order by period_end asc
-        LIMIT 30
-    EOQ
-    param "account_id" {}
 }
 
 
@@ -64,6 +68,7 @@ query "cost_by_service" {
         and account_id = $1 
         and dimension_type_1 = 'SERVICE'
         and dimension_type_2 = 'RECORD_TYPE'
+        and dimension_1 != 'Tax'
         and dimension_2 not in ('Credit')
         and period_start >= date_trunc('month', current_date - interval '1' month)
         and period_start < date_trunc('month', current_date)
@@ -87,6 +92,7 @@ query "cost_by_service" {
         and account_id = $1 
         and dimension_type_1 = 'SERVICE'
         and dimension_type_2 = 'RECORD_TYPE'
+        and dimension_1 != 'Tax'
         and dimension_2 not in ('Credit')
         and period_start >= date_trunc('month', current_date - interval '2' month)
         and period_start < date_trunc('month', current_date - interval '1' month)
@@ -110,6 +116,7 @@ query "cost_by_service" {
         and account_id = $1 
         and dimension_type_1 = 'SERVICE'
         and dimension_type_2 = 'RECORD_TYPE'
+        and dimension_1 != 'Tax'
         and dimension_2 not in ('Credit')
         and period_start >= date_trunc('month', current_date - interval '3' month)
         and period_start < date_trunc('month', current_date - interval '2' month)
@@ -142,8 +149,6 @@ query "cost_by_service" {
     EOQ
     param "account_id" {}
 }
-
-
 
 
 dashboard "milkFloat_FinOps_Dashboard_Filter_By_Account" {
@@ -186,7 +191,8 @@ dashboard "milkFloat_FinOps_Dashboard_Filter_By_Account" {
                     x {
                         title {
                             value = "Day"
-                        }
+                            align = "end"
+                        }      
                     }
                     y {
                         title {
@@ -194,30 +200,8 @@ dashboard "milkFloat_FinOps_Dashboard_Filter_By_Account" {
                         }
                     }
                 }
-                title = "Account Last 30 Days Daily Usage"
-                query = query.aws_last_30_days_daily_cost_for_account
-                args = {
-                    "account_id" = self.input.account_id.value
-                }
-            }
-        }
-        container {
-            chart {
-                type  = "line"
-                title = "Next 30 Days Predicted Total Account Cost"
-                query = query.forcasted_30_days
-                axes {
-                    x {
-                        title {
-                            value = "Day"
-                        }
-                    }
-                    y {
-                        title {
-                            value = "Cost ($)"
-                        }
-                    }
-                }
+                title = "Account Daily Usage (Used and Forecasted)"
+                query = query.aws_60_days
                 args = {
                     "account_id" = self.input.account_id.value
                 }
