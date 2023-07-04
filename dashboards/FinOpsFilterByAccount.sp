@@ -22,27 +22,42 @@ query "aws_60_days" {
   sql = <<-EOQ
   WITH temp as(
     WITH t1 as (
-      SELECT to_char(period_end, 'DD-MM') as day, period_start, 
-        ROUND(CAST(mean_value as numeric), 2) as cost 
+      SELECT period_start 
         FROM aws_cost_forecast_daily
         WHERE account_id = $1
         ORDER BY period_end asc
         LIMIT 30
         ), 
       t2 as (
-      SELECT TO_CHAR(period_start, 'DD-MM') as day, period_start, 
+        SELECT period_start
+          FROM aws_cost_by_account_daily 
+          WHERE account_id = $1
+          ORDER BY period_start desc 
+          LIMIT 30
+          )  
+    SELECT period_start FROM t1 
+    UNION 
+    SELECT period_start from t2
+    ),
+  t3 as (
+      SELECT period_start, 
         ROUND(CAST(unblended_cost_amount as numeric), 2) as cost 
         FROM aws_cost_by_account_daily 
         WHERE account_id = $1
         ORDER BY period_start desc 
         LIMIT 30
+  ),
+  t4 as (
+      SELECT period_start, 
+        ROUND(CAST(mean_value as numeric), 2) as estimate 
+        FROM aws_cost_forecast_daily
+        WHERE account_id = $1
+        ORDER BY period_end asc
+        LIMIT 30
         )
-    SELECT * FROM t1 
-    UNION 
-    SELECT * from t2
-    ORDER BY period_start asc
-    )
-  SELECT day, cost from temp
+  SELECT temp.period_start, t3.cost as "Cost", t4.estimate as "Estimated Cost" from temp
+  LEFT JOIN t3 ON temp.period_start = t3.period_start
+  LEFT JOIN t4 ON temp.period_start = t4.period_start
   EOQ
   param "account_id" {}
 }
@@ -132,7 +147,7 @@ query "cost_by_service" {
     CASE
       WHEN ROUND(CAST(costs_one_month_prior.cost_1_month_ago as numeric), 2) IS NULL THEN '0'
       ELSE ROUND(CAST(costs_one_month_prior.cost_1_month_ago as numeric), 2)
-    END AS "Cost 1 Months Ago ($)",
+    END AS "Cost 1 Month Ago ($)",
     CASE 
       WHEN ROUND(CAST(costs_two_months_prior.cost_2_months_ago as numeric), 2) IS NULL THEN '0'
       ELSE ROUND(CAST(costs_two_months_prior.cost_2_months_ago as numeric), 2)
@@ -156,74 +171,74 @@ dashboard "milkFloat_FinOps_Dashboard_Filter_By_Account" {
 
     container {
         input "account_id" {
-            width = 2
-            title = "Account Id"
+            width = 4
+            title = "Select Account for Cost breakdown"
             type  = "select"
             query = query.fetch_account_id_input
         }
-    }
-
-
-    container {
         card {
             query = query.aws_total_daily_account_cost_by_account_id
-            width = 3
+            width = 4
             icon = "attach_money"
             type = "info"
             args = {
                 "account_id" = self.input.account_id.value 
             }
         }
-
         card {
             query = query.aws_total_monthly_account_cost_by_account_id
-            width = 3
+            width = 4
             icon = "attach_money"
             type = "info"
             args = {
                 "account_id" = self.input.account_id.value 
             }
         }
-        container {
-            chart {
-                type = "line"
-                axes {
-                    x {
-                        title {
-                            value = "Day"
-                            align = "end"
-                        }      
-                    }
-                    y {
-                        title {
-                            value = "Cost ($)"
-                        }
-                    }
-                }
-                title = "Account Daily Usage (Used and Forecasted)"
-                query = query.aws_60_days
-                args = {
-                    "account_id" = self.input.account_id.value
+    }        
+    chart {
+        type = "line"
+        axes {
+            x {
+                title {
+                    value = "Date"
+                    align = "end"
+                }      
+            }
+            y {
+                title {
+                    value = "Cost ($)"
                 }
             }
         }
-        container {
-            chart {
-                type = "column"
-                axes {
-                    y {
-                        title {
-                            value = "Cost ($)"
-                        }
-                    }
-                }
-                grouping = "compare"
-                title = "Cost Breakdown of Provisioned Services"
-                query = query.cost_by_service
-                args = {
-                    "account_id" = self.input.account_id.value
+        title = "Account Daily Usage (+/- 30 Days)"
+        query = query.aws_60_days
+        args = {
+            "account_id" = self.input.account_id.value
+        }
+    }
+    chart {
+        type = "column"
+        width = 5
+        axes {
+            y {
+                title {
+                    value = "Cost ($)"
                 }
             }
         }
+        grouping = "compare"
+        title = "Cost Breakdown of Provisioned Services [Chart]"
+        query = query.cost_by_service
+        args = {
+            "account_id" = self.input.account_id.value
+        }
+    }
+    table {
+      title = "Cost Breakdown of Provisioned Services [Table]"
+      width = 7
+      query = query.cost_by_service
+      args = {
+            "account_id" = self.input.account_id.value
+            }
     }
 }

@@ -23,7 +23,7 @@ query "total_monthly_cost_by_account" {
 query "next_month_prediction_based_on_previous_6_month_avg" {
     sql = <<-EOQ
       select ROUND(SUM(CAST(unblended_cost_amount as numeric))/6, 2) as value,
-      'Total Account Costs Next Month (estimated)' as label
+      'Estimated Cost (Monthly)' as label
       from aws_cost_by_account_monthly 
       where account_id != '584676501372' 
         and estimated = false
@@ -78,7 +78,7 @@ query "last_1_week_inactive_accounts" {
 query "most_expensive_account" {
   sql = <<-EOQ
   WITH expensive_account as (
-    SELECT account_id 
+    SELECT account_id, unblended_cost_amount
       FROM aws_cost_by_account_monthly 
     WHERE period_start >= date_trunc('month', current_date - interval '0' month) 
       AND linked_account_id != '584676501372' and account_id != '584676501372'
@@ -88,7 +88,7 @@ query "most_expensive_account" {
   account_name as (
           SELECT full_name, account_id from aws_account_contact
         )
-  SELECT 'Most Expensive Account' as label,
+  SELECT CONCAT('Most Expensive Account : $', ROUND(CAST(expensive_account.unblended_cost_amount as numeric), 2)) as label,
     account_name.full_name as value
     FROM expensive_account
     LEFT JOIN account_name 
@@ -99,7 +99,7 @@ query "most_expensive_account" {
 query "cheapest_account" {
   sql = <<-EOQ
   WITH cheapest_account as (
-    SELECT account_id 
+    SELECT account_id, unblended_cost_amount
       FROM aws_cost_by_account_monthly 
     WHERE period_start >= date_trunc('month', current_date - interval '0' month) 
       AND linked_account_id != '584676501372' and account_id != '584676501372'
@@ -109,7 +109,7 @@ query "cheapest_account" {
   account_name as (
           SELECT full_name, account_id from aws_account_contact
         )
-  SELECT 'Cheapest Account' as label,
+  SELECT CONCAT('Cheapest Account : $', ROUND(CAST(cheapest_account.unblended_cost_amount as numeric), 2)) as label,
     account_name.full_name as value
     FROM cheapest_account
     LEFT JOIN account_name 
@@ -155,13 +155,6 @@ dashboard "milkFloat_FinOps_Dashboard" {
 
   container {
     card {
-          label = "Filter by Account Id"
-          icon = "group"
-          width = 3
-          type = "info"
-          href = "${dashboard.milkFloat_FinOps_Dashboard_Filter_By_Account.url_path}"
-      }
-    card {
       query = query.aws_total_daily_account_cost
       width = 3
       icon = "attach_money"
@@ -175,6 +168,14 @@ dashboard "milkFloat_FinOps_Dashboard" {
       sql = query.next_month_prediction_based_on_previous_6_month_avg.sql
       icon = "attach_money"
     }
+    card {
+          label = "Explore Cost breakdown by Account"
+          value = "Click here"
+          icon = "group"
+          width = 3
+          type = "info"
+          href = "${dashboard.milkFloat_FinOps_Dashboard_Filter_By_Account.url_path}"
+      }
   }
   container {
     card {
@@ -191,7 +192,7 @@ dashboard "milkFloat_FinOps_Dashboard" {
 
     chart {
         type  = "donut"
-        title = "Total Monthly Cost per Account (Current Month)"
+        title = "Current Month Cost per Account (Hover on segments for cost)"
         sql = query.total_monthly_cost_by_account.sql
         width = 6
     }
