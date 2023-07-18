@@ -8,21 +8,15 @@ query "number_of_accounts" {
 query "services_provisioned" {
   sql = <<-EOQ
   WITH
-    costs_this_month as (
+    services_this_month as (
       SELECT
-        dimension_1 as service_name,
         replace(lower(trim(dimension_1)), ' ', '-') as service,
-        partition,
-        account_id,
-        _ctx,
-        net_unblended_cost_unit as unit,
-        sum(net_unblended_cost_amount) as cost_this_month,
-        region
+        account_id
       FROM
         aws_cost_usage
       WHERE
         granularity = 'MONTHLY'
-        and account_id = $1
+        and account_id != '584676501372'
         and dimension_type_1 = 'SERVICE'
         and dimension_type_2 = 'RECORD_TYPE'
         and dimension_1 != 'Tax'
@@ -30,10 +24,9 @@ query "services_provisioned" {
         and period_start >= date_trunc('month', current_date - interval '1' month)
         and period_start < date_trunc('month', current_date)
       GROUP BY
-        1,2,3,4,5,unit,region) 
-      SELECT service from costs_this_month
+        1,2) 
+      SELECT service, count(service) as "Number of Provisions this Month in MilkCrate" from services_this_month group by services_this_month.service
       EOQ
-      param "account_id" {}
 }
 
 dashboard "milkFloat_Engineer_Dashboard" {
@@ -55,19 +48,10 @@ dashboard "milkFloat_Engineer_Dashboard" {
     }
   }
   container {
-        input "account_id" {
-            width = 4
-            title = "Select Account for Engineering breakdown"
-            type  = "select"
-            query = query.fetch_account_id_input
-        } 
-        table {
+      table {
       title = "Provisioned Services for Selected Account"
       width = 7
       query = query.services_provisioned
-      args = {
-            "account_id" = self.input.account_id.value
-            }
         }
   }
 }
