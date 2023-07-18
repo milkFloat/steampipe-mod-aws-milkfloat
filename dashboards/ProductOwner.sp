@@ -1,4 +1,4 @@
-query "service_cost" {
+query "deployed_services" {
   sql = <<-EOQ
     WITH
     costs_this_month as (
@@ -86,7 +86,7 @@ dashboard "milkFloat_ProductOwner_Dashboard" {
       placeholder = "e.g. '500'"
       }
     table {
-      query = query.service_cost
+      query = query.deployed_services
       title = "Deployed Services"
       }
 }
