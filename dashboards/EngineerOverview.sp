@@ -51,7 +51,7 @@ dashboard "milkFloat_Engineer_Dashboard" {
         icon = "shield_lock"
         width = 3
         type = "info"
-        href = "${dashboard.milkFloat_Security_Dashboardgit.url_path}"
+        href = "${dashboard.milkFloat_Security_Dashboard.url_path}"
     }
   }
   container {
