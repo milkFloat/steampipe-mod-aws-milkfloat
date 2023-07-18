@@ -36,6 +36,12 @@ query "service_cost" {
         EOQ
 }
 
+query "iam_users" {
+  sql = <<-EOQ
+  select name, user_id, account_id, password_last_used from aws_iam_user
+  EOQ
+}
+
 dashboard "milkFloat_ProductOwner_Dashboard" {
   title = "milkFloat Product Owner Dashboard"
 
@@ -84,11 +90,12 @@ dashboard "milkFloat_ProductOwner_Dashboard" {
       title = "Deployed Services"
       }
 }
+  container {
+    width = 8
     chart {
         type  = "bar"
         title = "Account Spend this Month"
-        width = 6
-
+  
         legend {
           display  = "auto"
           position = "top"
@@ -117,4 +124,9 @@ dashboard "milkFloat_ProductOwner_Dashboard" {
                   "budget" = self.input.budget.value 
                   }
                   }
+    table {
+      query = query.iam_users
+      title = "IAM Users Overview"
+    }
+} 
 }
