@@ -1,6 +1,6 @@
 query "number_of_accounts" {
   sql = <<-EOQ
-    SELECT 'Number of Sandboxes' as label , count(account_id) as value from aws_account
+    SELECT 'Number of Active Sandboxes' as label , count(account_id) as value from aws_account
     WHERE account_id != '584676501372'
   EOQ
 }
@@ -29,29 +29,49 @@ query "services_provisioned" {
       EOQ
 }
 
+query "provisioned_stack" {
+  sql = <<-EOQ
+  SELECT
+    account_id, name, id, status, creation_time, resources
+  FROM
+    aws_cloudformation_stack;
+  EOQ
+}
+
 dashboard "milkFloat_Engineer_Dashboard" {
   title = "milkFloat Engineer Dashboard"
 
   container {
     card {
       query = query.number_of_accounts
-      width = 3
+      width = 4
       icon = "folder_supervised"
     }
     card {
         label = "Explore Security Issues"
         value = "Click here"
         icon = "shield_lock"
-        width = 3
+        width = 4
         type = "info"
         href = "${dashboard.milkFloat_Security_Dashboard.url_path}"
     }
+    card {
+        label = "Explore Account Costs"
+        value = "Click here"
+        icon = "payments"
+        width = 4
+        type = "info"
+        href = "${dashboard.milkFloat_FinOps_Dashboard.url_path}"
+    }
   }
-  container {
-      table {
-      title = "Provisioned Services for Selected Account"
-      width = 7
+    table {
+      title = "Count of Provisioned Services Across Accounts"
+      width = 6
       query = query.services_provisioned
         }
-  }
+    table {
+      title = "Provisioned Stacks"
+      width = 6
+      query = query.provisioned_stack
+        }
 }
