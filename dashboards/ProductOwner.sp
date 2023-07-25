@@ -27,13 +27,28 @@ query "deployed_services" {
         SELECT full_name, linked_account_id 
         FROM aws_account_contact
         )
-      SELECT service as "Service", account_name.full_name as "Account Provisioned to" 
+      SELECT service_name as "Service", account_name.full_name as "Account Provisioned to" 
       FROM costs_this_month
       FULL JOIN account_name 
         ON costs_this_month.account_id=account_name.linked_account_id
       WHERE account_name.full_name != 'milkFloat'
-      GROUP BY service, account_name.full_name
+      GROUP BY service_name, account_name.full_name
         EOQ
+}
+
+query "security_hub_failings_overview" {
+sql = <<-EOQ
+        SELECT 'Sandboxes with Security Hub Failings' as label, COUNT(DISTINCT(aws_securityhub_finding.account_id)) as value,
+        CASE
+        when COUNT(DISTINCT(aws_securityhub_finding.account_id)) > 0 then 'alert'
+        else 'ok'
+        end as type
+          FROM aws_securityhub_finding
+        WHERE
+          aws_securityhub_finding.account_id != '584676501372' AND
+          record_state = 'ACTIVE' and
+          compliance_status = 'FAILED'
+    EOQ
 }
 
 query "iam_users" {
@@ -47,10 +62,11 @@ dashboard "milkFloat_ProductOwner_Dashboard" {
 
   container {
     card {
-      query = query.security_hub_failings
+      query = query.security_hub_failings_overview
       width = 3
-      icon = "info"
-      title = "Security Hub Failings"
+      icon = "feedback"
+      title = "Security Hub Failure Overview"
+      href = "${dashboard.milkfloat_security_and_compliance_detail.url_path}"
     }
     card {
             query = query.cis_benchmark_percentage
