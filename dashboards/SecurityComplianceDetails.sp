@@ -50,16 +50,15 @@ dashboard "milkfloat_security_and_compliance_detail" {
 
     container {
         table {
-            query = query.fetch_unauthorised_access
-            title = "Unauthorised Access"
+            title = "Security Hub Failings"
+            query = query.security_hub_failings
         }
     }
 
-
     container {
         table {
-            title = "Security Hub Failings"
-            query = query.security_hub_failings
+            query = query.fetch_unauthorised_access
+            title = "Unauthorised Access"
         }
     }
 }
