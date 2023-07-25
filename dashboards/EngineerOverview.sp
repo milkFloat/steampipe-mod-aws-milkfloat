@@ -38,6 +38,20 @@ query "provisioned_stack" {
   EOQ
 }
 
+query "resource_details" {
+  sql = <<-EOQ
+  SELECT
+  account_id as "Account ID",
+  identifier as "Resource",
+  properties ->> 'MemorySize' as "Memory Size",
+  properties ->> 'Runtime' as "Runtime",
+  region as "Region"
+from
+  aws_cloudcontrol_resource where
+  type_name = 'AWS::Lambda::Function';
+  EOQ
+}
+
 dashboard "milkFloat_Engineer_Dashboard" {
   title = "milkFloat Engineer Dashboard"
 
@@ -74,4 +88,9 @@ dashboard "milkFloat_Engineer_Dashboard" {
       width = 6
       query = query.provisioned_stack
         }
+    table {
+      title = "Resource Overview"
+      width = 12
+      query = query.resource_details
+    }
 }
