@@ -97,9 +97,9 @@ dashboard "milkFloat_ProductOwner_Dashboard" {
   container {
     width = 4
   input "budget" {
-      title = "Set Monthly Budget ($):"
+      title = "Define Monthly Budget to Generate Visualisation ($):"
       type  = "text"
-      placeholder = "e.g. '500'"
+      placeholder = "e.g. '500'. [For Visualisation Only, Unrelated to AWS Budgets]"
       }
     table {
       query = query.deployed_services

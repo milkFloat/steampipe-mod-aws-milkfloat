@@ -41,6 +41,17 @@ query "aws_total_daily_account_cost" {
   EOQ
 }
 
+query "get_recent_logins_last_3" {
+  sql = <<-EOQ
+  SELECT 
+  timestamp as "Most Recent Logins for Selected Account" FROM aws_cloudwatch_log_event 
+      WHERE log_group_name = $1
+    AND filter = '{($.eventName = "ConsoleLogin")}' AND timestamp >= now() - interval '7 day'
+    ORDER BY timestamp desc LIMIT 3
+  EOQ
+  param "log" {}
+}
+
 query "aws_total_monthly_account_cost" {
   sql = <<-EOQ
     select round(cast(sum(unblended_cost_amount) as numeric), 2) as value,
@@ -189,27 +200,41 @@ dashboard "milkFloat_FinOps_Dashboard" {
       icon = "trending_down"
     }
   }
-
+  container{
+  container{
+    width = 6
     chart {
         type  = "donut"
         title = "Current Month Cost per Account (Hover on segments for cost)"
         sql = query.total_monthly_cost_by_account.sql
-        width = 6
+        width = 12
     }
+  }
+  container{
+    width = 6
+    input "acc" {
+      title = "Check Recent Account Logins:"
+      width = 12
+      query = query.get_account_log_group_name
+      }
     table {
-        query = query.last_1_week_inactive_accounts
-        title = "Inactive Accounts [Last 7 days]"
-        width = 6
-        }
+            query = query.get_recent_logins_last_3
+            width = 12
+            args = {
+                "log" = self.input.acc.value 
+            }
+            }
+  }
+  }
   container {
   container {
     width = 4
 
     input "budget" {
-      title = "Set Monthly Budget ($):"
+      title = "Define Monthly Budget to Generate Visualisation ($):"
       width = 12
       type  = "text"
-      placeholder = "e.g. '500'"
+      placeholder = "e.g. '500'. [For Visualisation Only, Unrelated to AWS Budgets]"
       }
       card {
         width = 12
