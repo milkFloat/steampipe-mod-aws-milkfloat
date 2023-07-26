@@ -38,22 +38,23 @@ query "deployed_services" {
 
 query "security_hub_failings_overview" {
 sql = <<-EOQ
-        SELECT 'Sandboxes with Security Hub Failings' as label, COUNT(DISTINCT(aws_securityhub_finding.account_id)) as value,
-        CASE
-        when COUNT(DISTINCT(aws_securityhub_finding.account_id)) > 0 then 'alert'
-        else 'ok'
-        end as type
-          FROM aws_securityhub_finding
-        WHERE
-          aws_securityhub_finding.account_id != '584676501372' AND
-          record_state = 'ACTIVE' and
-          compliance_status = 'FAILED'
+  SELECT 'Sandboxes with Security Hub Failings' as label, COUNT(DISTINCT(aws_securityhub_finding.account_id)) as value,
+    CASE
+    WHEN COUNT(DISTINCT(aws_securityhub_finding.account_id)) > 0 then 'alert'
+    ELSE 'ok'
+    end as type
+      FROM aws_securityhub_finding
+    WHERE
+      aws_securityhub_finding.account_id != '584676501372' and
+      record_state = 'ACTIVE' and
+      compliance_status = 'FAILED'
     EOQ
 }
 
 query "iam_users" {
   sql = <<-EOQ
-  select name, user_id, account_id, password_last_used from aws_iam_user
+  SELECT name, user_id, account_id, password_last_used 
+  FROM aws_iam_user
   EOQ
 }
 

@@ -1,20 +1,22 @@
 query "get_account_log_group_name" {
   sql = <<-EOQ
-    with temp as (
-          select full_name, linked_account_id from aws_account_contact
+    WITH temp as (
+      SELECT full_name, linked_account_id 
+      FROM aws_account_contact
     )
-      select DISTINCT(temp.full_name) as label, 
+    SELECT DISTINCT(temp.full_name) as label, 
       log_group_name as value
-      from aws_cloudwatch_log_metric_filter
-      FULL JOIN temp 
-          ON temp.linked_account_id=aws_cloudwatch_log_metric_filter.account_id
-      WHERE temp.full_name != 'milkFloat'
+      FROM aws_cloudwatch_log_metric_filter
+    FULL JOIN temp 
+      ON temp.linked_account_id=aws_cloudwatch_log_metric_filter.account_id
+    WHERE temp.full_name != 'milkFloat'
     EOQ
 }
 
 query "number_of_accounts" {
   sql = <<-EOQ
-    SELECT 'Number of Active Sandboxes' as label , count(account_id) as value from aws_account
+    SELECT 'Number of Active Sandboxes' as label , count(account_id) as value 
+    FROM aws_account
     WHERE account_id != '584676501372'
   EOQ
 }
@@ -26,8 +28,7 @@ query "services_provisioned" {
       SELECT
         replace(lower(trim(dimension_1)), ' ', '-') as service,
         account_id
-      FROM
-        aws_cost_usage
+      FROM aws_cost_usage
       WHERE
         granularity = 'MONTHLY'
         and account_id != '584676501372'
@@ -37,32 +38,30 @@ query "services_provisioned" {
         and dimension_2 not in ('Credit')
         and period_start >= date_trunc('month', current_date - interval '1' month)
         and period_start < date_trunc('month', current_date)
-      GROUP BY
-        1,2) 
-      SELECT service, count(service) as "Number of Provisions this Month in MilkCrate" from services_this_month group by services_this_month.service
+      GROUP BY 1,2) 
+      SELECT service, count(service) as "Number of Provisions this Month in MilkCrate" 
+      FROM services_this_month 
+      GROUP BY services_this_month.service
       EOQ
 }
 
 query "provisioned_stack" {
   sql = <<-EOQ
-  SELECT
-    account_id, name, id, status, creation_time, resources
-  FROM
-    aws_cloudformation_stack;
+  SELECT account_id, name, id, status, creation_time, resources
+  FROM aws_cloudformation_stack;
   EOQ
 }
 
 query "resource_details" {
   sql = <<-EOQ
   SELECT
-  account_id as "Account ID",
-  identifier as "Resource",
-  properties ->> 'MemorySize' as "Memory Size",
-  properties ->> 'Runtime' as "Runtime",
-  region as "Region"
-from
-  aws_cloudcontrol_resource where
-  type_name = 'AWS::Lambda::Function';
+    account_id as "Account ID",
+    identifier as "Resource",
+    properties ->> 'MemorySize' as "Memory Size",
+    properties ->> 'Runtime' as "Runtime",
+    region as "Region"
+  FROM aws_cloudcontrol_resource 
+  WHERE type_name = 'AWS::Lambda::Function';
   EOQ
 }
 
@@ -70,8 +69,8 @@ query "get_recent_logins" {
   sql = <<-EOQ
   SELECT 
   timestamp as "Timestamp" FROM aws_cloudwatch_log_event 
-      WHERE log_group_name = $1
-    AND filter = '{($.eventName = "ConsoleLogin")}' AND timestamp >= now() - interval '7 day'
+  WHERE log_group_name = $1
+    AND FILTER = '{($.eventName = "ConsoleLogin")}' AND timestamp >= now() - interval '7 day'
   EOQ
   param "log" {}
 }
