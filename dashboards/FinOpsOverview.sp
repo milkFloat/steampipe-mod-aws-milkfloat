@@ -1,18 +1,19 @@
 query "total_monthly_cost_by_account" {
     sql = <<-EOQ
-        with cost as (
-            select linked_account_id, 
+        WITH cost as (
+          SELECT linked_account_id, 
             unblended_cost_amount,
             period_end
-            from aws_cost_by_account_monthly 
-            WHERE 
-              estimated=true
-            ORDER BY period_end desc
+          FROM aws_cost_by_account_monthly 
+          WHERE estimated=true
+          ORDER BY period_end desc
         ),
         account_name as (
-          select full_name, linked_account_id from aws_account_contact
+          SELECT full_name, linked_account_id 
+          FROM aws_account_contact
         )
-        SELECT account_name.full_name, ROUND(CAST(cost.unblended_cost_amount as numeric), 2) as account_cost_$ FROM cost
+        SELECT account_name.full_name, ROUND(CAST(cost.unblended_cost_amount as numeric), 2) as account_cost_$ 
+        FROM cost
         FULL JOIN account_name 
           ON cost.linked_account_id=account_name.linked_account_id
         WHERE account_name.full_name != 'milkFloat'
@@ -22,10 +23,10 @@ query "total_monthly_cost_by_account" {
 
 query "next_month_prediction_based_on_previous_6_month_avg" {
     sql = <<-EOQ
-      select ROUND(SUM(CAST(unblended_cost_amount as numeric))/6, 2) as value,
+      SELECT ROUND(SUM(CAST(unblended_cost_amount as numeric))/6, 2) as value,
       'Estimated Cost (Monthly)' as label
-      from aws_cost_by_account_monthly 
-      where account_id != '584676501372' 
+      FROM aws_cost_by_account_monthly 
+      WHERE account_id != '584676501372' 
         and estimated = false
         and period_end <= date_trunc('month', current_date - interval '5' month)
     EOQ
@@ -33,28 +34,29 @@ query "next_month_prediction_based_on_previous_6_month_avg" {
 
 query "aws_total_daily_account_cost" {
   sql = <<-EOQ
-    select round(cast(sum(unblended_cost_amount) as numeric), 2) as value,
+    SELECT ROUND(CAST(sum(unblended_cost_amount) as numeric), 2) as value,
     'Cost today for all accounts' as label
-    from aws_cost_by_account_daily 
-    where period_start >= date_trunc('day', current_date - interval '1' day)
-    and linked_account_id != '584676501372'
+    FROM aws_cost_by_account_daily 
+    WHERE period_start >= date_trunc('day', current_date - interval '1' day)
+    AND linked_account_id != '584676501372'
   EOQ
 }
 
 query "get_recent_logins_last_3" {
   sql = <<-EOQ
-  SELECT 
-  timestamp as "Most Recent Logins for Selected Account" FROM aws_cloudwatch_log_event 
-      WHERE log_group_name = $1
-    AND filter = '{($.eventName = "ConsoleLogin")}' AND timestamp >= now() - interval '7 day'
-    ORDER BY timestamp desc LIMIT 3
+  SELECT timestamp as "Most Recent Logins for Selected Account" 
+  FROM aws_cloudwatch_log_event 
+  WHERE log_group_name = $1
+    AND filter = '{($.eventName = "ConsoleLogin")}' 
+    AND timestamp >= now() - interval '7 day'
+  ORDER BY timestamp desc LIMIT 3
   EOQ
   param "log" {}
 }
 
 query "aws_total_monthly_account_cost" {
   sql = <<-EOQ
-    select round(cast(sum(unblended_cost_amount) as numeric), 2) as value,
+    SELECT ROUND(CAST(sum(unblended_cost_amount) as numeric), 2) as value,
     CASE
       WHEN estimated = true then 'info'
       ELSE 'plain'
@@ -65,24 +67,12 @@ query "aws_total_monthly_account_cost" {
     END AS label,
     CASE
       WHEN round(cast(sum(unblended_cost_amount) as numeric), 2) < 500 then 'south'
-      else 'north'
+      ELSE 'north'
     END AS icon
-    from aws_cost_by_account_monthly 
-    where period_start >= date_trunc('month', current_date - interval '0' month)
-    and linked_account_id != '584676501372'
-    group by estimated
-  EOQ
-}
-
-query "last_1_week_inactive_accounts" {
-  sql = <<-EOQ
-    SELECT full_name as "Account Name" 
-    FROM aws_account_contact
-    WHERE account_id != '584676501372' 
-      AND account_id not in (
-      SELECT distinct(account_id) FROM aws_cloudwatch_log_event 
-      WHERE log_group_name = 'Dev-BLEAGovBaseStandalone-LoggingCloudTrailLogGroupEFC12822-fR5gNifTwSRV'
-    AND filter = '{($.eventName = "ConsoleLogin")}' AND timestamp >= now() - interval '7 day')
+    FROM aws_cost_by_account_monthly 
+    WHERE period_start >= date_trunc('month', current_date - interval '0' month)
+      AND linked_account_id != '584676501372'
+    GROUP BY estimated
   EOQ
 }
 
@@ -118,29 +108,29 @@ query "cheapest_account" {
     LIMIT 1
   ), 
   account_name as (
-          SELECT full_name, account_id from aws_account_contact
-        )
+    SELECT full_name, account_id from aws_account_contact
+    )
   SELECT CONCAT('Cheapest Account : $', ROUND(CAST(cheapest_account.unblended_cost_amount as numeric), 2)) as label,
     account_name.full_name as value
     FROM cheapest_account
     LEFT JOIN account_name 
-          ON account_name.account_id=cheapest_account.account_id
+      ON account_name.account_id=cheapest_account.account_id
   EOQ
 }
 
 query "monthly_budget_account_costs" {
     sql = <<-EOQ
-        with cost as (
-            select linked_account_id, 
+        WITH cost as (
+            SELECT linked_account_id, 
             unblended_cost_amount,
             period_end
-            from aws_cost_by_account_monthly 
+            FROM aws_cost_by_account_monthly 
             WHERE 
               estimated=true
             ORDER BY period_end desc
         ),
         account_name as (
-          select full_name, linked_account_id from aws_account_contact
+          SELECT full_name, linked_account_id from aws_account_contact
         )
         SELECT account_name.full_name, ROUND(CAST(cost.unblended_cost_amount as numeric), 2) as account_cost, ROUND((CAST($1 as numeric) - CAST(cost.unblended_cost_amount as numeric)), 2) as account_budget FROM cost
         FULL JOIN account_name 
