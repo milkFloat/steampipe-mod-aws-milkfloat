@@ -98,28 +98,6 @@ query "non_compliant_keys" {
         EOQ
 }
 
-query "recent_logins" {
-    sql = <<-EOQ
-    WITH count_logins as (
-    SELECT
-        event_id AS "Event Id",
-        timestamp AS "Timestamp",
-        message_json->>'userIdentity' AS "User Identity",
-        account_id
-    FROM
-        aws_cloudwatch_log_event
-    WHERE
-        log_group_name = 'Dev-BLEAGovBaseStandalone-LoggingCloudTrailLogGroupEFC12822-Osc3j5K0guqc'
-        AND filter = '{($.eventName = "ConsoleLogin")}'
-        AND timestamp >= now() - interval '1 month'
-    )
-    SELECT 
-        'Number of Logins' as label, 
-        count(account_id) as value
-    FROM count_logins
-    EOQ
-}
-
 query "DetectionUnauthorisedAPICallsAlarm" {
     sql = <<-EOQ
         select count(name),
@@ -202,12 +180,6 @@ dashboard "milkFloat_Security_Dashboard" {
             icon = "key"
             href = "${dashboard.milkFloat_Security_Dashboard_Details.url_path}"
         }
-        #card {
-        #    query = query.recent_logins
-        #    width = 2
-        #    icon = "login"
-        #    href = "${dashboard.milkFloat_Security_Dashboard_Details.url_path}"
-        #}
     }
     table {
         title = "Overview of Access Keys"
