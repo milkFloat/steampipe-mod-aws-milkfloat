@@ -56,7 +56,7 @@ dashboard "milkFloat_Security_Dashboard_Details" {
             width = 3
         }
         table {
-            title = "Accounts with MFA Disabled"
+            title = "Users with MFA Disabled"
             query = query.mfa_disabled_accounts
             width = 8
         }

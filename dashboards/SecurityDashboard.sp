@@ -56,7 +56,7 @@ query "number_of_accounts_with_mfa_disabled" {
             WHERE mfa_enabled = false
         )
         SELECT 
-            'Number of accounts with MFA disabled' as label,
+            'Number of Users with MFA disabled' as label,
             number_of_accounts_with_mfa_disabled.accounts_mfa_disabled_count as value,
         CASE
             WHEN number_of_accounts_with_mfa_disabled.accounts_mfa_disabled_count > 0 then 'alert'
