@@ -138,7 +138,6 @@ EOF
 done < <(aws organizations list-accounts --query Accounts[?Id=="'069605283238'"].[Name,Id,Status] --output text --profile $SOURCE_PROFILE;
 aws organizations list-accounts --query Accounts[?Id=="'945706905277'"].[Name,Id,Status] --output text --profile $SOURCE_PROFILE;
 aws organizations list-accounts --query Accounts[?Id=="'981481680619'"].[Name,Id,Status] --output text --profile $SOURCE_PROFILE;
-aws organizations list-accounts --query Accounts[?Id=="'584676501372'"].[Name,Id,Status] --output text --profile $SOURCE_PROFILE;
 aws organizations list-accounts --query Accounts[?Id=="'455863248492'"].[Name,Id,Status] --output text --profile $SOURCE_PROFILE;)
 
 if [ $COMMAND == "LOCAL" ] ; then
